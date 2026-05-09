@@ -3,62 +3,48 @@
 import { useEffect, useReducer, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
-import type { TaskRun, TaskPhase, TaskEvent, ReportSection } from "@/types";
+import type { TaskRun, TaskPhase, TaskEvent } from "@/types";
 import { useTaskStream } from "@/app/hooks/useTaskStream";
 
-interface LogEntry {
-  id: string;
-  message: string;
-  at: string;
-  type: "log" | "phase" | "error";
-}
-
 interface State {
-  task: TaskRun | null;
+  title: string;
   phase: TaskPhase | null;
-  logs: LogEntry[];
-  sections: ReportSection[];
-  streamBuffer: string;
-  reportId: string | null;
+  logs: string[];
   error: string;
+  reportId: string | null;
 }
 
 type Action =
   | { type: "SET_TASK"; task: TaskRun }
   | { type: "SET_PHASE"; phase: TaskPhase }
-  | { type: "ADD_LOG"; entry: LogEntry }
-  | { type: "ADD_SECTION"; section: ReportSection }
-  | { type: "DELTA"; text: string }
+  | { type: "ADD_LOG"; message: string }
   | { type: "SET_REPORT"; reportId: string }
   | { type: "SET_ERROR"; error: string };
 
 function reducer(s: State, a: Action): State {
   switch (a.type) {
-    case "SET_TASK": return { ...s, task: a.task, phase: a.task.phase };
-    case "SET_PHASE": return { ...s, phase: a.phase };
-    case "ADD_LOG": return { ...s, logs: [...s.logs, a.entry] };
-    case "ADD_SECTION": return { ...s, sections: [...s.sections, a.section], streamBuffer: "" };
-    case "DELTA": return { ...s, streamBuffer: s.streamBuffer + a.text };
-    case "SET_REPORT": return { ...s, reportId: a.reportId, streamBuffer: "" };
-    case "SET_ERROR": return { ...s, error: a.error };
+    case "SET_TASK":   return { ...s, title: a.task.title, phase: a.task.phase };
+    case "SET_PHASE":  return { ...s, phase: a.phase };
+    case "ADD_LOG":    return { ...s, logs: [...s.logs.slice(-60), a.message] };
+    case "SET_REPORT": return { ...s, reportId: a.reportId };
+    case "SET_ERROR":  return { ...s, error: a.error };
     default: return s;
   }
 }
 
-const phaseLabel: Record<string, string> = {
-  executing: "深度调研中",
-  reporting: "生成报告中",
-  followup: "报告完成",
-  clarifying: "需求分析中",
-  failed: "出错",
+const PHASE_TEXT: Record<string, string> = {
+  clarifying: "正在分析需求…",
+  executing:  "正在深度调研…",
+  reporting:  "正在生成报告…",
+  followup:   "报告已完成",
+  failed:     "任务出错",
 };
 
-const phaseColor: Record<string, string> = {
-  executing: "text-yellow-400",
-  reporting: "text-blue-400",
-  followup: "text-green-400",
-  clarifying: "text-purple-400",
-  failed: "text-red-400",
+const PHASE_STEPS: Record<string, number> = {
+  clarifying: 1,
+  executing:  2,
+  reporting:  3,
+  followup:   4,
 };
 
 export default function TaskRunPage() {
@@ -66,7 +52,7 @@ export default function TaskRunPage() {
   const router = useRouter();
   const logEndRef = useRef<HTMLDivElement>(null);
   const [state, dispatch] = useReducer(reducer, {
-    task: null, phase: null, logs: [], sections: [], streamBuffer: "", reportId: null, error: "",
+    title: "", phase: null, logs: [], error: "", reportId: null,
   });
 
   useEffect(() => {
@@ -80,131 +66,126 @@ export default function TaskRunPage() {
   }, [state.logs]);
 
   useTaskStream(taskId, (event: TaskEvent) => {
-    const now = new Date().toISOString();
     if (event.type === "task.phase.changed") {
       dispatch({ type: "SET_PHASE", phase: event.phase });
-      dispatch({ type: "ADD_LOG", entry: { id: event.at, message: phaseLabel[event.phase] ?? event.phase, at: event.at, type: "phase" } });
       if (event.phase === "followup" && state.reportId) {
         router.push(`/tasks/${taskId}/report`);
       }
     }
     if (event.type === "task.log") {
-      dispatch({ type: "ADD_LOG", entry: { id: event.at + Math.random(), message: event.message, at: event.at, type: "log" } });
-    }
-    if (event.type === "assistant.message.delta") {
-      dispatch({ type: "DELTA", text: event.delta });
+      dispatch({ type: "ADD_LOG", message: event.message });
     }
     if (event.type === "report.section.added") {
-      dispatch({ type: "ADD_SECTION", section: event.section });
-      dispatch({ type: "ADD_LOG", entry: { id: now + Math.random(), message: `章节完成：${event.section.title}`, at: now, type: "log" } });
+      dispatch({ type: "ADD_LOG", message: `✓ ${event.section.title}` });
     }
     if (event.type === "report.finalized") {
       dispatch({ type: "SET_REPORT", reportId: event.reportId });
-      setTimeout(() => router.push(`/tasks/${taskId}/report`), 800);
+      setTimeout(() => router.push(`/tasks/${taskId}/report`), 600);
     }
     if (event.type === "task.error") {
       dispatch({ type: "SET_ERROR", error: event.error });
-      dispatch({ type: "ADD_LOG", entry: { id: event.at, message: `错误：${event.error}`, at: event.at, type: "error" } });
     }
   });
 
+  const step = PHASE_STEPS[state.phase ?? ""] ?? 0;
   const isRunning = state.phase && !["followup", "completed", "failed"].includes(state.phase);
+  const isFailed = state.phase === "failed";
 
   return (
     <div className="min-h-screen bg-[#0a0a14] text-gray-100 flex flex-col">
-      <header className="shrink-0 border-b border-gray-800 px-6 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Link href="/agents/research" className="text-gray-500 hover:text-gray-300 text-sm">← 重新开始</Link>
-          <div className="w-px h-4 bg-gray-800" />
-          <span className="text-sm text-gray-300 truncate max-w-xs">{state.task?.title ?? "加载中…"}</span>
-        </div>
-        {state.phase && (
-          <div className="flex items-center gap-2">
-            {isRunning && <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />}
-            <span className={`text-xs font-medium ${phaseColor[state.phase] ?? "text-gray-400"}`}>
-              {phaseLabel[state.phase] ?? state.phase}
-            </span>
-          </div>
-        )}
+      <header className="shrink-0 px-6 py-4 flex items-center gap-3">
+        <Link href="/agents/research" className="text-gray-600 hover:text-gray-400 text-sm transition-colors">
+          ← 重新开始
+        </Link>
       </header>
 
-      <div className="flex-1 flex overflow-hidden">
-        {/* 左侧：实时日志 */}
-        <div className="w-72 shrink-0 border-r border-gray-800 flex flex-col bg-[#080810]">
-          <div className="px-4 py-3 border-b border-gray-800">
-            <h2 className="text-xs font-medium text-gray-500 uppercase tracking-wider">调研进展</h2>
-          </div>
-          <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
-            {state.logs.length === 0 && (
-              <p className="text-xs text-gray-600">等待任务启动…</p>
-            )}
-            {state.logs.map((entry) => (
-              <div key={entry.id} className={`flex gap-2 text-xs ${
-                entry.type === "phase" ? "text-blue-400 font-medium" :
-                entry.type === "error" ? "text-red-400" : "text-gray-400"
-              }`}>
-                <span className="shrink-0 mt-0.5">
-                  {entry.type === "phase" ? "▶" : entry.type === "error" ? "✕" : "·"}
-                </span>
-                <span className="leading-relaxed">{entry.message}</span>
-              </div>
-            ))}
-            {isRunning && (
-              <div className="flex gap-2 text-xs text-gray-600">
-                <span className="shrink-0">·</span>
-                <span className="animate-pulse">处理中…</span>
-              </div>
-            )}
-            <div ref={logEndRef} />
-          </div>
-        </div>
+      <div className="flex-1 flex flex-col items-center justify-center px-6 pb-8">
+        <div className="w-full max-w-lg space-y-10">
 
-        {/* 右侧：报告内容逐步展示 */}
-        <div className="flex-1 overflow-y-auto px-8 py-6">
-          {state.sections.length === 0 && !state.streamBuffer && (
-            <div className="h-full flex flex-col items-center justify-center gap-4">
-              <div className="relative w-16 h-16">
-                <div className="absolute inset-0 rounded-full border-2 border-blue-500/30 animate-ping" />
-                <div className="absolute inset-2 rounded-full border-2 border-blue-500/60 animate-pulse" />
-                <div className="absolute inset-4 rounded-full bg-blue-500/20 flex items-center justify-center">
-                  <span className="text-xl">🔍</span>
+          {/* 主状态区 */}
+          <div className="text-center space-y-4">
+            {!isFailed && (
+              <div className="relative w-20 h-20 mx-auto">
+                <div className="absolute inset-0 rounded-full border-2 border-blue-500/20 animate-ping" style={{ animationDuration: "2s" }} />
+                <div className="absolute inset-1 rounded-full border-2 border-blue-500/40 animate-pulse" />
+                <div className="absolute inset-3 rounded-full bg-gradient-to-br from-blue-600/30 to-indigo-600/30 flex items-center justify-center">
+                  <span className="text-2xl">🔍</span>
                 </div>
               </div>
-              <p className="text-gray-500 text-sm">
-                {state.phase === "executing" ? "正在深度调研，请稍候…" :
-                 state.phase === "reporting" ? "正在整理报告内容…" :
-                 "正在准备…"}
+            )}
+            {isFailed && (
+              <div className="w-20 h-20 mx-auto rounded-full bg-red-900/30 border border-red-800/50 flex items-center justify-center text-3xl">
+                ✕
+              </div>
+            )}
+
+            <div>
+              <h1 className="text-xl font-semibold text-white mb-1">
+                {state.title || "调研任务"}
+              </h1>
+              <p className={`text-sm font-medium ${isFailed ? "text-red-400" : "text-blue-400"}`}>
+                {isFailed ? state.error : (PHASE_TEXT[state.phase ?? ""] ?? "正在准备…")}
               </p>
             </div>
-          )}
+          </div>
 
-          {state.streamBuffer && (
-            <div className="mb-6 bg-gray-900/40 border border-gray-800 rounded-2xl p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
-                <span className="text-xs text-blue-400 font-medium">正在生成…</span>
-              </div>
-              <pre className="text-sm text-gray-300 whitespace-pre-wrap font-sans leading-relaxed">
-                {state.streamBuffer}
-                <span className="inline-block w-0.5 h-4 bg-blue-400 animate-pulse ml-0.5 align-middle" />
-              </pre>
+          {/* 进度步骤 */}
+          {!isFailed && (
+            <div className="flex items-center gap-0">
+              {[
+                { n: 1, label: "需求分析" },
+                { n: 2, label: "深度调研" },
+                { n: 3, label: "生成报告" },
+              ].map(({ n, label }, i) => (
+                <div key={n} className="flex items-center flex-1">
+                  <div className="flex flex-col items-center flex-1">
+                    <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-500 ${
+                      step > n ? "bg-blue-500 text-white" :
+                      step === n ? "bg-blue-500/20 border-2 border-blue-500 text-blue-400" :
+                      "bg-gray-800 border border-gray-700 text-gray-600"
+                    }`}>
+                      {step > n ? "✓" : n}
+                    </div>
+                    <span className={`text-xs mt-1.5 transition-colors duration-500 ${
+                      step >= n ? "text-gray-400" : "text-gray-700"
+                    }`}>
+                      {label}
+                    </span>
+                  </div>
+                  {i < 2 && (
+                    <div className={`h-px flex-1 mb-5 mx-1 transition-all duration-700 ${
+                      step > n + 0 ? "bg-blue-500" : "bg-gray-800"
+                    }`} />
+                  )}
+                </div>
+              ))}
             </div>
           )}
 
-          {state.sections.length > 0 && (
-            <div className="space-y-5">
-              {[...state.sections]
-                .sort((a, b) => a.order - b.order)
-                .map((sec, i) => (
-                  <div
-                    key={sec.id}
-                    className="bg-gray-900/60 border border-gray-800 rounded-2xl p-5 animate-in fade-in slide-in-from-bottom-2 duration-500"
-                    style={{ animationDelay: `${i * 100}ms` }}
-                  >
-                    <h3 className="text-base font-semibold text-white mb-3">{sec.title}</h3>
-                    <p className="text-sm text-gray-300 leading-relaxed whitespace-pre-wrap">{sec.markdown}</p>
-                  </div>
+          {/* 日志小窗 */}
+          {state.logs.length > 0 && !isFailed && (
+            <div className="bg-gray-900/60 border border-gray-800/80 rounded-xl overflow-hidden">
+              <div className="px-3 py-2 border-b border-gray-800/60 flex items-center gap-2">
+                {isRunning && <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />}
+                <span className="text-xs text-gray-500">进度日志</span>
+              </div>
+              <div className="h-28 overflow-y-auto px-3 py-2 space-y-1">
+                {state.logs.map((msg, i) => (
+                  <p key={i} className="text-xs text-gray-500 leading-relaxed">{msg}</p>
                 ))}
+                <div ref={logEndRef} />
+              </div>
+            </div>
+          )}
+
+          {isFailed && (
+            <div className="text-center">
+              <Link
+                href="/agents/research"
+                className="inline-block px-6 py-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-sm text-gray-300 transition-colors"
+              >
+                重新开始调研
+              </Link>
             </div>
           )}
         </div>
