@@ -2,6 +2,7 @@
 
 import { useEffect, useReducer, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
+import Link from "next/link";
 import type { TaskRun, TaskPhase, TaskEvent, ReportSection } from "@/types";
 import { useTaskStream } from "@/app/hooks/useTaskStream";
 
@@ -113,7 +114,7 @@ export default function TaskRunPage() {
     <div className="min-h-screen bg-[#0a0a14] text-gray-100 flex flex-col">
       <header className="shrink-0 border-b border-gray-800 px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <a href="/agents/research" className="text-gray-500 hover:text-gray-300 text-sm">← 重新开始</a>
+          <Link href="/agents/research" className="text-gray-500 hover:text-gray-300 text-sm">← 重新开始</Link>
           <div className="w-px h-4 bg-gray-800" />
           <span className="text-sm text-gray-300 truncate max-w-xs">{state.task?.title ?? "加载中…"}</span>
         </div>

@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import type { AnalyzeResult, Dimension, DimensionSelection } from "@/types";
 import ModelPicker, { useSelectedModel } from "@/app/components/ModelPicker";
 
@@ -132,7 +133,7 @@ export default function ResearchIntakePage() {
   return (
     <div className="min-h-screen bg-[#0a0a14] text-gray-100 flex flex-col">
       <header className="shrink-0 border-b border-gray-800 px-6 py-3 flex items-center gap-3">
-        <a href="/agents" className="text-gray-500 hover:text-gray-300 text-sm transition-colors">← 返回</a>
+        <Link href="/agents" className="text-gray-500 hover:text-gray-300 text-sm transition-colors">← 返回</Link>
         <div className="w-px h-4 bg-gray-800" />
         <div className="flex items-center gap-2">
           <span className="text-lg">🔍</span>

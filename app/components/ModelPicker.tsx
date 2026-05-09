@@ -43,13 +43,19 @@ export default function ModelPicker() {
 
   useEffect(() => {
     if (!open || groups.length > 0) return;
-    setLoading(true);
-    fetch("/api/models")
-      .then((r) => r.json())
-      .then((d: { groups?: ProviderGroup[] }) => {
-        if (d.groups) setGroups(d.groups);
-      })
-      .finally(() => setLoading(false));
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true);
+      try {
+        const r = await fetch("/api/models");
+        const d = (await r.json()) as { groups?: ProviderGroup[] };
+        if (!cancelled && d.groups) setGroups(d.groups);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    void load();
+    return () => { cancelled = true; };
   }, [open, groups.length]);
 
   useEffect(() => {

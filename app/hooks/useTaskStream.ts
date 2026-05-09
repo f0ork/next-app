@@ -5,7 +5,10 @@ import type { TaskEvent } from "@/types";
 
 export function useTaskStream(taskId: string | null, onEvent: (e: TaskEvent) => void) {
   const onEventRef = useRef(onEvent);
-  onEventRef.current = onEvent;
+
+  useEffect(() => {
+    onEventRef.current = onEvent;
+  });
 
   useEffect(() => {
     if (!taskId) return;

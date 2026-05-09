@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import Link from "next/link";
 import type { ResearchReport, ReportCard, ReportSection, TaskRun } from "@/types";
 
 function ExpandableCard({ card, onDrilldown }: { card: ReportCard; onDrilldown: (q: string) => void }) {
@@ -234,7 +235,7 @@ export default function ReportPage() {
     <div className="min-h-screen bg-[#0a0a14] text-gray-100">
       <header className="border-b border-gray-800 bg-[#080810] px-6 py-3 flex items-center justify-between sticky top-0 z-10">
         <div className="flex items-center gap-3">
-          <a href="/agents/research" className="text-gray-500 hover:text-gray-300 text-sm">← 新调研</a>
+          <Link href="/agents/research" className="text-gray-500 hover:text-gray-300 text-sm">← 新调研</Link>
           <div className="w-px h-4 bg-gray-800" />
           <span className="text-sm text-gray-300 truncate max-w-xs">{task?.title ?? "调研报告"}</span>
         </div>
