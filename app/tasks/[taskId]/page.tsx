@@ -1,219 +1,213 @@
 "use client";
 
-import { useEffect, useReducer, useRef, useState } from "react";
+import { useEffect, useReducer, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
-import type { TaskRun, TaskPhase, TaskEvent } from "@/types";
+import type { TaskRun, TaskPhase, TaskEvent, ReportSection } from "@/types";
 import { useTaskStream } from "@/app/hooks/useTaskStream";
-import ReactMarkdown from "react-markdown";
 
-interface ChatLine {
-  role: "user" | "assistant";
-  content: string;
-  streaming?: boolean;
+interface LogEntry {
+  id: string;
+  message: string;
+  at: string;
+  type: "log" | "phase" | "error";
 }
 
 interface State {
   task: TaskRun | null;
   phase: TaskPhase | null;
-  lines: ChatLine[];
-  streamingText: string;
+  logs: LogEntry[];
+  sections: ReportSection[];
+  streamBuffer: string;
+  reportId: string | null;
   error: string;
 }
 
 type Action =
   | { type: "SET_TASK"; task: TaskRun }
   | { type: "SET_PHASE"; phase: TaskPhase }
+  | { type: "ADD_LOG"; entry: LogEntry }
+  | { type: "ADD_SECTION"; section: ReportSection }
   | { type: "DELTA"; text: string }
-  | { type: "FLUSH_STREAM" }
+  | { type: "SET_REPORT"; reportId: string }
   | { type: "SET_ERROR"; error: string };
 
-function reducer(state: State, action: Action): State {
-  switch (action.type) {
-    case "SET_TASK":
-      return { ...state, task: action.task, phase: action.task.phase };
-    case "SET_PHASE":
-      return { ...state, phase: action.phase };
-    case "DELTA":
-      return { ...state, streamingText: state.streamingText + action.text };
-    case "FLUSH_STREAM": {
-      if (!state.streamingText) return state;
-      return {
-        ...state,
-        lines: [...state.lines, { role: "assistant", content: state.streamingText }],
-        streamingText: "",
-      };
-    }
-    case "SET_ERROR":
-      return { ...state, error: action.error };
-    default:
-      return state;
+function reducer(s: State, a: Action): State {
+  switch (a.type) {
+    case "SET_TASK": return { ...s, task: a.task, phase: a.task.phase };
+    case "SET_PHASE": return { ...s, phase: a.phase };
+    case "ADD_LOG": return { ...s, logs: [...s.logs, a.entry] };
+    case "ADD_SECTION": return { ...s, sections: [...s.sections, a.section], streamBuffer: "" };
+    case "DELTA": return { ...s, streamBuffer: s.streamBuffer + a.text };
+    case "SET_REPORT": return { ...s, reportId: a.reportId, streamBuffer: "" };
+    case "SET_ERROR": return { ...s, error: a.error };
+    default: return s;
   }
 }
 
-export default function TaskPage() {
+const phaseLabel: Record<string, string> = {
+  executing: "深度调研中",
+  reporting: "生成报告中",
+  followup: "报告完成",
+  clarifying: "需求分析中",
+  failed: "出错",
+};
+
+const phaseColor: Record<string, string> = {
+  executing: "text-yellow-400",
+  reporting: "text-blue-400",
+  followup: "text-green-400",
+  clarifying: "text-purple-400",
+  failed: "text-red-400",
+};
+
+export default function TaskRunPage() {
   const { taskId } = useParams<{ taskId: string }>();
   const router = useRouter();
+  const logEndRef = useRef<HTMLDivElement>(null);
   const [state, dispatch] = useReducer(reducer, {
-    task: null, phase: null, lines: [], streamingText: "", error: "",
+    task: null, phase: null, logs: [], sections: [], streamBuffer: "", reportId: null, error: "",
   });
-  const [input, setInput] = useState("");
-  const [sending, setSending] = useState(false);
-  const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetch(`/api/tasks/${taskId}`)
       .then((r) => r.json())
       .then((d: { task?: TaskRun }) => { if (d.task) dispatch({ type: "SET_TASK", task: d.task }); });
-
-    fetch(`/api/tasks/${taskId}/messages`)
-      .then((r) => r.json())
-      .then((d: { messages?: Array<{ role: "user" | "assistant"; content: string }> }) => {
-        if (d.messages) {
-          const lines: ChatLine[] = d.messages
-            .filter((m) => m.role !== undefined)
-            .map((m) => ({ role: m.role, content: m.content }));
-          lines.forEach((l) => dispatch({ type: "FLUSH_STREAM" }));
-          if (lines.length) dispatch({ type: "FLUSH_STREAM" });
-        }
-      });
   }, [taskId]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [state.lines, state.streamingText]);
+    logEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [state.logs]);
 
   useTaskStream(taskId, (event: TaskEvent) => {
+    const now = new Date().toISOString();
     if (event.type === "task.phase.changed") {
       dispatch({ type: "SET_PHASE", phase: event.phase });
-      if (event.phase === "followup") {
-        dispatch({ type: "FLUSH_STREAM" });
+      dispatch({ type: "ADD_LOG", entry: { id: event.at, message: phaseLabel[event.phase] ?? event.phase, at: event.at, type: "phase" } });
+      if (event.phase === "followup" && state.reportId) {
         router.push(`/tasks/${taskId}/report`);
       }
+    }
+    if (event.type === "task.log") {
+      dispatch({ type: "ADD_LOG", entry: { id: event.at + Math.random(), message: event.message, at: event.at, type: "log" } });
     }
     if (event.type === "assistant.message.delta") {
       dispatch({ type: "DELTA", text: event.delta });
     }
+    if (event.type === "report.section.added") {
+      dispatch({ type: "ADD_SECTION", section: event.section });
+      dispatch({ type: "ADD_LOG", entry: { id: now + Math.random(), message: `章节完成：${event.section.title}`, at: now, type: "log" } });
+    }
     if (event.type === "report.finalized") {
-      dispatch({ type: "FLUSH_STREAM" });
-      router.push(`/tasks/${taskId}/report`);
+      dispatch({ type: "SET_REPORT", reportId: event.reportId });
+      setTimeout(() => router.push(`/tasks/${taskId}/report`), 800);
     }
     if (event.type === "task.error") {
-      dispatch({ type: "FLUSH_STREAM" });
       dispatch({ type: "SET_ERROR", error: event.error });
+      dispatch({ type: "ADD_LOG", entry: { id: event.at, message: `错误：${event.error}`, at: event.at, type: "error" } });
     }
   });
 
-  const handleSend = async () => {
-    if (!input.trim() || sending) return;
-    const content = input.trim();
-    setInput("");
-    setSending(true);
-    dispatch({ type: "FLUSH_STREAM" });
-    const lines = [{ role: "user" as const, content }];
-    lines.forEach(() => dispatch({ type: "FLUSH_STREAM" }));
-
-    await fetch(`/api/tasks/${taskId}/messages`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content }),
-    });
-    setSending(false);
-  };
-
-  const phaseLabel: Record<string, string> = {
-    intake: "初始化",
-    clarifying: "信息收集中",
-    executing: "分析中",
-    reporting: "生成报告中",
-    followup: "报告完成",
-    failed: "出错",
-  };
-
-  const isActive = state.phase && !["completed", "failed", "followup"].includes(state.phase);
+  const isRunning = state.phase && !["followup", "completed", "failed"].includes(state.phase);
 
   return (
-    <div className="min-h-screen bg-[#0f0f1a] text-gray-100 flex flex-col">
-      <header className="shrink-0 border-b border-gray-800 bg-[#0a0a14] px-6 py-3 flex items-center justify-between">
+    <div className="min-h-screen bg-[#0a0a14] text-gray-100 flex flex-col">
+      <header className="shrink-0 border-b border-gray-800 px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <a href="/agents" className="text-gray-500 hover:text-gray-300 text-sm transition-colors">← 返回</a>
-          <div className="w-px h-4 bg-gray-700" />
-          <span className="text-sm font-medium text-white">{state.task?.title ?? "加载中…"}</span>
+          <a href="/agents/research" className="text-gray-500 hover:text-gray-300 text-sm">← 重新开始</a>
+          <div className="w-px h-4 bg-gray-800" />
+          <span className="text-sm text-gray-300 truncate max-w-xs">{state.task?.title ?? "加载中…"}</span>
         </div>
         {state.phase && (
           <div className="flex items-center gap-2">
-            {isActive && <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />}
-            <span className="text-xs text-gray-400">{phaseLabel[state.phase] ?? state.phase}</span>
+            {isRunning && <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />}
+            <span className={`text-xs font-medium ${phaseColor[state.phase] ?? "text-gray-400"}`}>
+              {phaseLabel[state.phase] ?? state.phase}
+            </span>
           </div>
         )}
       </header>
 
-      <div className="flex-1 overflow-y-auto px-6 py-6">
-        <div className="max-w-3xl mx-auto space-y-4">
-          {state.lines.map((line, i) => (
-            <div key={i} className={`flex ${line.role === "user" ? "justify-end" : "justify-start"}`}>
-              <div className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm ${
-                line.role === "user"
-                  ? "bg-gradient-to-br from-blue-600 to-indigo-600 text-white rounded-tr-sm"
-                  : "bg-gray-800 text-gray-100 rounded-tl-sm"
+      <div className="flex-1 flex overflow-hidden">
+        {/* 左侧：实时日志 */}
+        <div className="w-72 shrink-0 border-r border-gray-800 flex flex-col bg-[#080810]">
+          <div className="px-4 py-3 border-b border-gray-800">
+            <h2 className="text-xs font-medium text-gray-500 uppercase tracking-wider">调研进展</h2>
+          </div>
+          <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
+            {state.logs.length === 0 && (
+              <p className="text-xs text-gray-600">等待任务启动…</p>
+            )}
+            {state.logs.map((entry) => (
+              <div key={entry.id} className={`flex gap-2 text-xs ${
+                entry.type === "phase" ? "text-blue-400 font-medium" :
+                entry.type === "error" ? "text-red-400" : "text-gray-400"
               }`}>
-                {line.role === "assistant"
-                  ? <div className="prose prose-invert prose-sm max-w-none"><ReactMarkdown>{line.content}</ReactMarkdown></div>
-                  : <span className="whitespace-pre-wrap">{line.content}</span>
-                }
+                <span className="shrink-0 mt-0.5">
+                  {entry.type === "phase" ? "▶" : entry.type === "error" ? "✕" : "·"}
+                </span>
+                <span className="leading-relaxed">{entry.message}</span>
               </div>
-            </div>
-          ))}
-
-          {state.streamingText && (
-            <div className="flex justify-start">
-              <div className="max-w-[80%] bg-gray-800 text-gray-100 rounded-2xl rounded-tl-sm px-4 py-3 text-sm">
-                <div className="prose prose-invert prose-sm max-w-none"><ReactMarkdown>{state.streamingText}</ReactMarkdown></div>
-                <span className="inline-block w-0.5 h-4 bg-blue-400 animate-pulse ml-0.5 align-middle" />
+            ))}
+            {isRunning && (
+              <div className="flex gap-2 text-xs text-gray-600">
+                <span className="shrink-0">·</span>
+                <span className="animate-pulse">处理中…</span>
               </div>
-            </div>
-          )}
-
-          {isActive && !state.streamingText && (
-            <div className="flex justify-start">
-              <div className="bg-gray-800 rounded-2xl rounded-tl-sm px-4 py-3 flex gap-1.5 items-center">
-                <span className="w-1.5 h-1.5 rounded-full bg-gray-500 animate-bounce [animation-delay:0ms]" />
-                <span className="w-1.5 h-1.5 rounded-full bg-gray-500 animate-bounce [animation-delay:150ms]" />
-                <span className="w-1.5 h-1.5 rounded-full bg-gray-500 animate-bounce [animation-delay:300ms]" />
-              </div>
-            </div>
-          )}
-
-          {state.error && (
-            <div className="text-sm text-red-400 bg-red-900/20 border border-red-800 rounded-xl px-4 py-3">
-              ❌ {state.error}
-            </div>
-          )}
-
-          <div ref={bottomRef} />
-        </div>
-      </div>
-
-      {state.phase === "clarifying" || state.phase === "followup" ? (
-        <div className="shrink-0 border-t border-gray-800 bg-[#0a0a14] px-6 py-4">
-          <div className="max-w-3xl mx-auto flex gap-3">
-            <textarea
-              rows={1}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-              placeholder="回复 AI 的问题，或补充更多信息…"
-              className="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-blue-500 resize-none"
-            />
-            <button
-              onClick={handleSend}
-              disabled={!input.trim() || sending}
-              className="px-5 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors"
-            >
-              发送
-            </button>
+            )}
+            <div ref={logEndRef} />
           </div>
         </div>
-      ) : null}
+
+        {/* 右侧：报告内容逐步展示 */}
+        <div className="flex-1 overflow-y-auto px-8 py-6">
+          {state.sections.length === 0 && !state.streamBuffer && (
+            <div className="h-full flex flex-col items-center justify-center gap-4">
+              <div className="relative w-16 h-16">
+                <div className="absolute inset-0 rounded-full border-2 border-blue-500/30 animate-ping" />
+                <div className="absolute inset-2 rounded-full border-2 border-blue-500/60 animate-pulse" />
+                <div className="absolute inset-4 rounded-full bg-blue-500/20 flex items-center justify-center">
+                  <span className="text-xl">🔍</span>
+                </div>
+              </div>
+              <p className="text-gray-500 text-sm">
+                {state.phase === "executing" ? "正在深度调研，请稍候…" :
+                 state.phase === "reporting" ? "正在整理报告内容…" :
+                 "正在准备…"}
+              </p>
+            </div>
+          )}
+
+          {state.streamBuffer && (
+            <div className="mb-6 bg-gray-900/40 border border-gray-800 rounded-2xl p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+                <span className="text-xs text-blue-400 font-medium">正在生成…</span>
+              </div>
+              <pre className="text-sm text-gray-300 whitespace-pre-wrap font-sans leading-relaxed">
+                {state.streamBuffer}
+                <span className="inline-block w-0.5 h-4 bg-blue-400 animate-pulse ml-0.5 align-middle" />
+              </pre>
+            </div>
+          )}
+
+          {state.sections.length > 0 && (
+            <div className="space-y-5">
+              {[...state.sections]
+                .sort((a, b) => a.order - b.order)
+                .map((sec, i) => (
+                  <div
+                    key={sec.id}
+                    className="bg-gray-900/60 border border-gray-800 rounded-2xl p-5 animate-in fade-in slide-in-from-bottom-2 duration-500"
+                    style={{ animationDelay: `${i * 100}ms` }}
+                  >
+                    <h3 className="text-base font-semibold text-white mb-3">{sec.title}</h3>
+                    <p className="text-sm text-gray-300 leading-relaxed whitespace-pre-wrap">{sec.markdown}</p>
+                  </div>
+                ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

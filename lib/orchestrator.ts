@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import type {
   AgentId,
   AgentTaskInput,
+  DimensionSelection,
   TaskRun,
   TaskPhase,
   TaskMessage,
@@ -9,7 +10,7 @@ import type {
   TaskEvent,
 } from "@/types";
 import { getAgent } from "./agents/registry";
-import { buildExecutePrompt } from "./agents/research";
+import { buildExecutePrompt, buildExecutePromptFromSelections } from "./agents/research";
 import * as store from "./store";
 import * as oc from "./opencode/client";
 
@@ -28,10 +29,22 @@ function publish(event: TaskEvent): void {
   subscribers.get(event.taskId)?.forEach((fn) => fn(event));
 }
 
+function log(taskId: string, message: string): void {
+  publish({ type: "task.log", taskId, message, at: new Date().toISOString() });
+}
+
 function updatePhase(task: TaskRun, phase: TaskPhase): TaskRun {
   const updated = { ...task, phase, status: "running" as const, updatedAt: new Date().toISOString() };
   store.saveTask(updated);
   publish({ type: "task.phase.changed", taskId: task.id, phase, at: updated.updatedAt });
+  const phaseMessages: Record<string, string> = {
+    clarifying: "正在分析需求，准备提出补充问题…",
+    executing: "需求已明确，开始深度调研…",
+    reporting: "调研完成，正在整理并生成结构化报告…",
+    followup: "报告已生成",
+    failed: "任务执行出错",
+  };
+  if (phaseMessages[phase]) log(task.id, phaseMessages[phase]);
   return updated;
 }
 
@@ -63,6 +76,49 @@ export async function createTask(
   const firstPrompt = `${agent.prompts.system}\n\n${agent.prompts.clarify}\n\n---\n调研类型：${input.mode}\n调研主题：${input.topic}\n核心问题：${input.goal}${input.constraints ? `\n约束：${input.constraints}` : ""}`;
 
   void startTask(task, firstPrompt).catch(console.error);
+
+  return task;
+}
+
+export async function createTaskFromSelections(
+  agentId: AgentId,
+  topic: string,
+  selections: DimensionSelection[]
+): Promise<TaskRun> {
+  const agent = getAgent(agentId);
+  if (!agent) throw new Error(`unknown agent: ${agentId}`);
+
+  const sessionId = await oc.createSession();
+  const now = new Date().toISOString();
+  const input: AgentTaskInput = {
+    mode: "general_research",
+    topic,
+    goal: selections.map((s) => `${s.dimensionId}: ${s.selected.join("、")}`).join("；"),
+  };
+
+  const task: TaskRun = {
+    id: `task_${randomUUID().slice(0, 8)}`,
+    agentId,
+    title: topic,
+    phase: "executing",
+    status: "running",
+    createdAt: now,
+    updatedAt: now,
+    session: { provider: "opencode", sessionId, createdAt: now },
+    input,
+    inputCompletion: { sufficient: true, missingFields: [] },
+    agentVersion: agent.version,
+  };
+
+  store.saveTask(task);
+  publish({ type: "task.phase.changed", taskId: task.id, phase: "executing", at: now });
+  log(task.id, `调研任务已创建：${topic}`);
+  log(task.id, "正在建立 AI 连接，准备开始调研…");
+
+  const executePrompt = buildExecutePromptFromSelections(agent, topic, selections);
+  const fullPrompt = `${agent.prompts.system}\n\n${executePrompt}\n\n${agent.prompts.report}`;
+
+  void startTask(task, fullPrompt).catch(console.error);
 
   return task;
 }
@@ -210,6 +266,11 @@ async function finalizeReport(task: TaskRun, text: string, tag: string): Promise
   };
 
   store.saveReport(report);
+  log(task.id, `报告生成完成：${sections.length} 个章节，${cards.length} 张卡片`);
+
+  sections.forEach((sec) => {
+    publish({ type: "report.section.added", taskId: task.id, section: sec, at: new Date().toISOString() });
+  });
 
   const updated = { ...task, phase: "followup" as TaskPhase, status: "done" as const, latestReportId: reportId, updatedAt: new Date().toISOString() };
   store.saveTask(updated);

@@ -1,4 +1,4 @@
-import type { AgentDefinition, AgentTaskInput, TaskMessage } from "@/types";
+import type { AgentDefinition, AgentTaskInput, DimensionSelection, TaskMessage } from "@/types";
 
 export const researchAgent: AgentDefinition = {
   id: "research",
@@ -149,6 +149,21 @@ export const researchAgent: AgentDefinition = {
     jsonBlockTag: "REPORT_JSON",
   },
 };
+
+export function buildExecutePromptFromSelections(
+  agent: AgentDefinition,
+  topic: string,
+  selections: DimensionSelection[]
+): string {
+  const selectionDesc = selections
+    .map((s) => `- ${s.dimensionId}：${s.selected.join("、")}`)
+    .join("\n");
+
+  return agent.prompts.execute.replace(
+    "{context}",
+    `调研主题：${topic}\n\n用户关注的维度和偏好：\n${selectionDesc}`
+  );
+}
 
 export function buildExecutePrompt(
   agent: AgentDefinition,

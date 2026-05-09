@@ -146,8 +146,35 @@ export type TaskEvent =
   | { type: "task.phase.changed"; taskId: string; phase: TaskPhase; at: string }
   | { type: "assistant.message.delta"; taskId: string; messageId: string; delta: string; at: string }
   | { type: "assistant.question.generated"; taskId: string; question: AgentQuestion; at: string }
+  | { type: "task.log"; taskId: string; message: string; at: string }
+  | { type: "report.section.added"; taskId: string; section: ReportSection; at: string }
   | { type: "report.finalized"; taskId: string; reportId: string; at: string }
   | { type: "task.error"; taskId: string; error: string; at: string };
+
+export interface DimensionOption {
+  value: string;
+  label: string;
+  description?: string;
+}
+
+export interface Dimension {
+  id: string;
+  question: string;
+  hint?: string;
+  multiple: boolean;
+  options: DimensionOption[];
+}
+
+export interface AnalyzeResult {
+  topic: string;
+  summary: string;
+  dimensions: Dimension[];
+}
+
+export interface DimensionSelection {
+  dimensionId: string;
+  selected: string[];
+}
 
 export interface FormField {
   type: "text" | "textarea" | "select";
