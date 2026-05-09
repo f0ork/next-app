@@ -1,5 +1,8 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
+# task data (runtime generated, not tracked)
+/data/tasks/
+
 # dependencies
 /node_modules
 /.pnp
