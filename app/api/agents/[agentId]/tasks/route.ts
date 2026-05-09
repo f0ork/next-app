@@ -13,13 +13,14 @@ export async function POST(
     input?: AgentTaskInput;
     topic?: string;
     selections?: DimensionSelection[];
+    modelId?: string;
   };
 
   try {
     const task =
       body.topic && body.selections
-        ? await createTaskFromSelections(agentId as AgentId, body.topic, body.selections)
-        : await createTask(agentId as AgentId, body.input!);
+        ? await createTaskFromSelections(agentId as AgentId, body.topic, body.selections, body.modelId)
+        : await createTask(agentId as AgentId, body.input!, body.modelId);
     return NextResponse.json({ task });
   } catch (err) {
     return NextResponse.json(

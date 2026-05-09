@@ -1,4 +1,5 @@
 import Link from "next/link";
+import ModelPicker from "@/app/components/ModelPicker";
 
 const agents = [
   {
@@ -15,9 +16,14 @@ export default function AgentsPage() {
   return (
     <div className="min-h-screen bg-[#0f0f1a] text-gray-100 px-6 py-12">
       <div className="max-w-4xl mx-auto">
-        <div className="mb-10">
-          <h1 className="text-3xl font-bold text-white mb-2">选择能力</h1>
-          <p className="text-gray-400">选择一个 Agent 开始你的任务</p>
+        <div className="mb-10 flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-white mb-2">选择能力</h1>
+            <p className="text-gray-400">选择一个 Agent 开始你的任务</p>
+          </div>
+          <div className="shrink-0 pt-1">
+            <ModelPicker />
+          </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

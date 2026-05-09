@@ -50,12 +50,13 @@ function updatePhase(task: TaskRun, phase: TaskPhase): TaskRun {
 
 export async function createTask(
   agentId: AgentId,
-  input: AgentTaskInput
+  input: AgentTaskInput,
+  modelId?: string
 ): Promise<TaskRun> {
   const agent = getAgent(agentId);
   if (!agent) throw new Error(`unknown agent: ${agentId}`);
 
-  const sessionId = await oc.createSession();
+  const sessionId = await oc.createSession(modelId);
   const now = new Date().toISOString();
   const task: TaskRun = {
     id: `task_${randomUUID().slice(0, 8)}`,
@@ -83,12 +84,13 @@ export async function createTask(
 export async function createTaskFromSelections(
   agentId: AgentId,
   topic: string,
-  selections: DimensionSelection[]
+  selections: DimensionSelection[],
+  modelId?: string
 ): Promise<TaskRun> {
   const agent = getAgent(agentId);
   if (!agent) throw new Error(`unknown agent: ${agentId}`);
 
-  const sessionId = await oc.createSession();
+  const sessionId = await oc.createSession(modelId);
   const now = new Date().toISOString();
   const input: AgentTaskInput = {
     mode: "general_research",

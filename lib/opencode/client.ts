@@ -1,15 +1,20 @@
 const OPENCODE_URL = process.env.OPENCODE_SERVER_URL ?? "http://127.0.0.1:4096";
 
-const DEFAULT_MODEL = {
-  id: process.env.OPENCODE_MODEL_ID ?? "Mify-Xiaomi/xiaomi/mimo-v2.5-pro",
-  providerID: process.env.OPENCODE_PROVIDER_ID ?? "Mify-Xiaomi",
-};
+const DEFAULT_MODEL_ID =
+  process.env.OPENCODE_MODEL_ID ?? "Mify-Xiaomi/xiaomi/mimo-v2.5-pro";
 
-export async function createSession(): Promise<string> {
+function parseModelId(fullId: string): { id: string; providerID: string } {
+  const parts = fullId.split("/");
+  const providerID = parts[0];
+  return { id: fullId, providerID };
+}
+
+export async function createSession(modelId?: string): Promise<string> {
+  const model = parseModelId(modelId ?? DEFAULT_MODEL_ID);
   const res = await fetch(`${OPENCODE_URL}/session`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ model: DEFAULT_MODEL }),
+    body: JSON.stringify({ model }),
   });
   if (!res.ok) throw new Error(`opencode create session failed: ${res.status}`);
   const data = (await res.json()) as { id: string };

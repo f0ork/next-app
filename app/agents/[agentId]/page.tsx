@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import type { AnalyzeResult, Dimension, DimensionSelection } from "@/types";
+import ModelPicker, { useSelectedModel } from "@/app/components/ModelPicker";
 
 type Stage = "input" | "analyzing" | "selecting" | "starting";
 
@@ -68,6 +69,7 @@ function DimensionCard({
 
 export default function ResearchIntakePage() {
   const router = useRouter();
+  const { modelId } = useSelectedModel();
   const [stage, setStage] = useState<Stage>("input");
   const [topic, setTopic] = useState("");
   const [analyzeResult, setAnalyzeResult] = useState<AnalyzeResult | null>(null);
@@ -114,7 +116,7 @@ export default function ResearchIntakePage() {
       const res = await fetch("/api/agents/research/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic: analyzeResult.topic, selections }),
+        body: JSON.stringify({ topic: analyzeResult.topic, selections, modelId }),
       });
       const data = (await res.json()) as { task?: { id: string }; error?: string };
       if (!res.ok || !data.task) throw new Error(data.error ?? "创建失败");
@@ -130,11 +132,14 @@ export default function ResearchIntakePage() {
   return (
     <div className="min-h-screen bg-[#0a0a14] text-gray-100 flex flex-col">
       <header className="shrink-0 border-b border-gray-800 px-6 py-3 flex items-center gap-3">
-        <a href="/agents" className="text-gray-500 hover:text-gray-300 text-sm transition-colors">back</a>
+        <a href="/agents" className="text-gray-500 hover:text-gray-300 text-sm transition-colors">← 返回</a>
         <div className="w-px h-4 bg-gray-800" />
         <div className="flex items-center gap-2">
           <span className="text-lg">🔍</span>
           <span className="text-sm font-medium text-gray-200">资讯收集</span>
+        </div>
+        <div className="ml-auto">
+          <ModelPicker />
         </div>
       </header>
 
