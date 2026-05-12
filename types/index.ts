@@ -30,7 +30,7 @@ export interface AgentTaskInput {
 }
 
 export interface OpencodeSessionBinding {
-  provider: "opencode";
+  provider: "opencode" | "ai-sdk";
   sessionId: string;
   createdAt: string;
   lastEventAt?: string;

@@ -1,15 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { AnalyzeResult } from "@/types";
-import * as oc from "@/lib/opencode/client";
+import { callAI } from "@/lib/ai/client";
 
 export const runtime = "nodejs";
 
-const buildPrompt = (topic: string) =>
-  `你是一个调研需求分析专家。用户想调研：「${topic}」
+const SYSTEM_PROMPT = `你是一个调研需求分析专家。用户会给你一个调研主题，你需要分析这个主题，拆解出 3-5 个关键收集维度，每个维度提供 3-6 个具体选项。
 
-任务：分析这个调研需求，拆解出 3-5 个关键收集维度，每个维度提供 3-6 个具体选项。
+输出格式（严格遵守）：
 
-必须严格按以下 JSON 格式输出，<ANALYZE_JSON> 标签前后不要有任何其他文字：
+在回复的最后，输出一个 JSON 数据块：
 
 <ANALYZE_JSON>
 {
@@ -37,28 +36,28 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "topic is required" }, { status: 400 });
   }
 
-  const sessionId = await oc.createSession();
-  let fullText = "";
-  let resolveStream!: () => void;
+  const fullText = await callAI(
+    `用户想调研：「${topic.trim()}」\n\n请分析需求并输出维度选项。`,
+    SYSTEM_PROMPT
+  );
 
-  const waitDone = new Promise<void>((res) => { resolveStream = res; });
-
-  const streamPromise = oc.streamSession(sessionId, {
-    onDelta: (d) => { fullText += d; },
-    onDone: () => resolveStream(),
-    onError: () => resolveStream(),
-  });
-
-  setTimeout(() => {
-    void oc.sendMessage(sessionId, buildPrompt(topic.trim()));
-  }, 80);
-
-  await Promise.race([waitDone, streamPromise]);
-
-  const raw = oc.extractJsonBlock(fullText, "ANALYZE_JSON") as AnalyzeResult | null;
+  const raw = extractJsonBlock(fullText, "ANALYZE_JSON") as AnalyzeResult | null;
   if (!raw?.dimensions?.length) {
     return NextResponse.json({ error: "AI 分析失败，请重试" }, { status: 500 });
   }
 
   return NextResponse.json({ result: raw });
+}
+
+function extractJsonBlock(text: string, tag: string): unknown | null {
+  const open = `<${tag}>`;
+  const close = `</${tag}>`;
+  const start = text.indexOf(open);
+  const end = text.indexOf(close);
+  if (start === -1 || end === -1 || end <= start) return null;
+  try {
+    return JSON.parse(text.slice(start + open.length, end).trim());
+  } catch {
+    return null;
+  }
 }

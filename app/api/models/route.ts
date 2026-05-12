@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
+import { readFileSync, existsSync } from "fs";
+import { join } from "path";
 
 export const runtime = "nodejs";
-
-const OPENCODE_URL = process.env.OPENCODE_SERVER_URL ?? "http://127.0.0.1:4096";
 
 export interface ModelItem {
   id: string;
@@ -34,45 +34,65 @@ const PROVIDER_DISPLAY: Record<string, string> = {
   "Mify-Hunyuan": "混元 Hunyuan",
 };
 
-export async function GET() {
-  try {
-    const res = await fetch(`${OPENCODE_URL}/config`);
-    if (!res.ok) throw new Error(`config fetch failed: ${res.status}`);
-    const config = (await res.json()) as {
-      model?: string;
-      provider?: Record<string, { name?: string; models?: Record<string, unknown> }>;
-    };
+const FALLBACK_MODELS: ProviderGroup[] = [
+  {
+    providerID: "anthropic",
+    name: "Anthropic (Claude)",
+    models: [
+      { id: "claude-sonnet-4-6", modelID: "claude-sonnet-4-6", providerID: "anthropic", label: "Claude Sonnet 4.6" },
+      { id: "claude-sonnet-4-5", modelID: "claude-sonnet-4-5", providerID: "anthropic", label: "Claude Sonnet 4.5" },
+      { id: "claude-haiku-4-5", modelID: "claude-haiku-4-5", providerID: "anthropic", label: "Claude Haiku 4.5" },
+    ],
+  },
+];
 
-    const currentModel = config.model ?? "";
-    const providers = config.provider ?? {};
+function loadFromConfig(): ProviderGroup[] {
+  const configPaths = [
+    join(process.env.HOME ?? "/root", ".config/opencode/opencode.json"),
+    join(process.env.HOME ?? "/root", ".config/opencode/opencode.jsonc"),
+  ];
 
-    const groups: ProviderGroup[] = Object.entries(providers)
-      .map(([providerID, p]) => {
-        const models: ModelItem[] = Object.keys(p.models ?? {}).map((modelID) => ({
-          id: `${providerID}/${modelID}`,
-          modelID,
-          providerID,
-          label: modelID.split("/").pop() ?? modelID,
-        }));
-        return {
+  for (const configPath of configPaths) {
+    if (!existsSync(configPath)) continue;
+    try {
+      const raw = readFileSync(configPath, "utf-8");
+      const cleaned = raw.replace(/\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
+      const config = JSON.parse(cleaned) as {
+        provider?: Record<string, { name?: string; models?: Record<string, unknown> }>;
+      };
+
+      const providers = config.provider ?? {};
+      return Object.entries(providers)
+        .map(([providerID, p]) => ({
           providerID,
           name: PROVIDER_DISPLAY[providerID] ?? providerID,
-          models,
-        };
-      })
-      .filter((g) => g.models.length > 0)
-      .sort((a, b) => {
-        const priority = ["Mify-Xiaomi", "Mify-Anthropic", "Mify-Vertex", "Mify-PPIO"];
-        const ai = priority.indexOf(a.providerID);
-        const bi = priority.indexOf(b.providerID);
-        if (ai !== -1 && bi !== -1) return ai - bi;
-        if (ai !== -1) return -1;
-        if (bi !== -1) return 1;
-        return a.name.localeCompare(b.name);
-      });
-
-    return NextResponse.json({ groups, currentModel });
-  } catch {
-    return NextResponse.json({ error: "无法连接 opencode server" }, { status: 503 });
+          models: Object.keys(p.models ?? {}).map((modelID) => ({
+            id: `${providerID}/${modelID}`,
+            modelID,
+            providerID,
+            label: modelID.split("/").pop() ?? modelID,
+          })),
+        }))
+        .filter((g) => g.models.length > 0)
+        .sort((a, b) => {
+          const priority = ["Mify-Xiaomi", "Mify-Anthropic", "Mify-Vertex", "Mify-PPIO"];
+          const ai = priority.indexOf(a.providerID);
+          const bi = priority.indexOf(b.providerID);
+          if (ai !== -1 && bi !== -1) return ai - bi;
+          if (ai !== -1) return -1;
+          if (bi !== -1) return 1;
+          return a.name.localeCompare(b.name);
+        });
+    } catch {
+      continue;
+    }
   }
+
+  return FALLBACK_MODELS;
+}
+
+export async function GET() {
+  const groups = loadFromConfig();
+  const currentModel = process.env.AI_MODEL_ID ?? "ppio/pa/claude-sonnet-4-6";
+  return NextResponse.json({ groups, currentModel });
 }
