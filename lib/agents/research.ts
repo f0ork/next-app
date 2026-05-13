@@ -90,56 +90,37 @@ export const researchAgent: AgentDefinition = {
 
 请直接开始分析，不需要重复描述任务背景。`,
 
-    report: `请基于上述分析，生成完整的调研报告。
+    report: `【重要：你必须在本次回复中输出完整的调研报告】
 
-输出格式（严格遵守，两部分都要有）：
+基于你已经收集到的所有信息，现在立即生成完整的调研报告。不要再搜索，不要再补充信息，直接用已有数据生成报告。
 
-第一部分：可直接阅读的中文报告正文
+输出格式（必须严格遵守）：
 
-第二部分：在正文末尾输出以下精确格式的 JSON 数据块（字段名必须完全一致）：
+第一部分：中文报告正文（摘要 + 各章节分析）
+
+第二部分：在正文最后，必须输出以下 JSON 数据块：
 
 <REPORT_JSON>
 {
   "summary": {
-    "title": "报告标题（字符串）",
-    "abstract": "2-3句话核心摘要（字符串）",
-    "keyFindings": ["核心发现1", "核心发现2", "核心发现3"]
+    "title": "报告标题",
+    "abstract": "2-3句话核心摘要",
+    "keyFindings": ["发现1", "发现2", "发现3"]
   },
   "sections": [
-    {
-      "id": "sec_1",
-      "title": "章节标题",
-      "markdown": "章节正文内容，支持 **加粗**、列表等 markdown",
-      "order": 1
-    }
+    { "id": "sec_1", "title": "章节标题", "markdown": "章节正文", "order": 1 }
   ],
   "cards": [
-    {
-      "type": "insight",
-      "id": "card_1",
-      "title": "核心洞察标题",
-      "points": ["洞察要点1", "洞察要点2", "洞察要点3"]
-    },
-    {
-      "type": "comparison",
-      "id": "card_2",
-      "title": "对比分析",
-      "columns": ["维度", "方案A", "方案B"],
-      "rows": [
-        {"维度": "价格", "方案A": "免费", "方案B": "付费"}
-      ]
-    }
+    { "type": "insight", "id": "card_1", "title": "洞察标题", "points": ["要点1", "要点2"] }
   ],
-  "followupSuggestions": ["建议进一步了解的方向1", "建议调研的话题2"]
+  "followupSuggestions": ["建议1", "建议2"]
 }
 </REPORT_JSON>
 
-严格要求：
-- 第二部分必须以 <REPORT_JSON> 开头，</REPORT_JSON> 结尾
-- JSON 字段名必须完全按照上面的模板（summary/sections/cards/followupSuggestions）
-- cards 的 type 只能是 insight/comparison/risk/timeline 之一
-- 必须是合法 JSON，不含注释、不含尾逗号
-- sections 至少 2 个，cards 至少 1 个，keyFindings 3-5 条`,
+【强制要求】
+- 本次回复必须包含 <REPORT_JSON>...</REPORT_JSON> 块，否则视为失败
+- sections 至少 2 个，cards 至少 1 个，keyFindings 3-5 条
+- 即使信息不完美，也要基于已有数据生成报告，不要追求完美而跳过报告`,
 
     followup: `用户正在基于已有报告进行追问。请结合报告内容和新问题给出准确、有深度的回答。
 
