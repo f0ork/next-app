@@ -200,7 +200,7 @@ function processAssistantOutput(task: TaskRun, text: string, jsonTag: string): v
     return;
   }
 
-  if (text.includes("READY_TO_EXECUTE") || task.phase === "executing") {
+  if (text.includes("READY_TO_EXECUTE")) {
     triggerExecution(task);
     return;
   }
