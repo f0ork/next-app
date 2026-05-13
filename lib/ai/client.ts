@@ -3,7 +3,7 @@ import { generateText, streamText, tool, stepCountIs } from "ai";
 import { z } from "zod";
 import { webSearch, fetchPageContent } from "./search";
 
-const DEFAULT_MODEL_ID = process.env.AI_MODEL_ID ?? "ppio/pa/claude-sonnet-4-6";
+const DEFAULT_MODEL_ID = process.env.AI_MODEL_ID ?? "xiaomi/mimo-v2.5-pro";
 
 function ensureV1Suffix(url: string): string {
   const clean = url.replace(/\/+$/, "");

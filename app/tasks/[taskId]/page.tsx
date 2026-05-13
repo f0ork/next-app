@@ -5,6 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import type { TaskRun, TaskPhase, TaskEvent } from "@/types";
 import { useTaskStream } from "@/app/hooks/useTaskStream";
+import { useSelectedModel } from "@/app/components/ModelPicker";
 
 interface LogEntry {
   id: string;
@@ -166,6 +167,7 @@ export default function TaskRunPage() {
 
   useTaskStream(taskId, handleEvent);
 
+  const { modelId } = useSelectedModel();
   const step = PHASE_STEPS[state.phase ?? ""] ?? 0;
   const isRunning =
     state.phase &&
@@ -189,6 +191,11 @@ export default function TaskRunPage() {
             </span>
           </>
         )}
+        <div className="ml-auto flex items-center gap-2">
+          <span className="text-xs text-gray-600 bg-gray-800/50 px-2 py-1 rounded-md">
+            {modelId.split("/").pop()}
+          </span>
+        </div>
       </header>
 
       <div className="flex-1 flex flex-col items-center justify-center px-6 pb-8">

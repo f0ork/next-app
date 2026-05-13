@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import type { ResearchReport, ReportCard, ReportSection, TaskRun } from "@/types";
+import { useSelectedModel } from "@/app/components/ModelPicker";
 
 function ExpandableCard({ card, onDrilldown }: { card: ReportCard; onDrilldown: (q: string) => void }) {
   const [expanded, setExpanded] = useState(false);
@@ -223,6 +224,8 @@ export default function ReportPage() {
     }
   };
 
+  const { modelId } = useSelectedModel();
+
   if (!report) {
     return (
       <div className="min-h-screen bg-[#0a0a14] flex items-center justify-center">
@@ -239,9 +242,14 @@ export default function ReportPage() {
           <div className="w-px h-4 bg-gray-800" />
           <span className="text-sm text-gray-300 truncate max-w-xs">{task?.title ?? "调研报告"}</span>
         </div>
-        <span className="text-xs text-green-400 bg-green-900/30 border border-green-800/50 px-2.5 py-0.5 rounded-full">
-          报告已完成
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-600 bg-gray-800/50 px-2 py-1 rounded-md">
+            {modelId.split("/").pop()}
+          </span>
+          <span className="text-xs text-green-400 bg-green-900/30 border border-green-800/50 px-2.5 py-0.5 rounded-full">
+            报告已完成
+          </span>
+        </div>
       </header>
 
       <div className="max-w-3xl mx-auto px-6 py-8 space-y-8">

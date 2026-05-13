@@ -39,9 +39,33 @@ const FALLBACK_MODELS: ProviderGroup[] = [
     providerID: "anthropic",
     name: "Anthropic (Claude)",
     models: [
-      { id: "claude-sonnet-4-6", modelID: "claude-sonnet-4-6", providerID: "anthropic", label: "Claude Sonnet 4.6" },
-      { id: "claude-sonnet-4-5", modelID: "claude-sonnet-4-5", providerID: "anthropic", label: "Claude Sonnet 4.5" },
-      { id: "claude-haiku-4-5", modelID: "claude-haiku-4-5", providerID: "anthropic", label: "Claude Haiku 4.5" },
+      { id: "ppio/pa/claude-sonnet-4-6", modelID: "ppio/pa/claude-sonnet-4-6", providerID: "anthropic", label: "Claude Sonnet 4.6" },
+      { id: "ppio/pa/claude-opus-4-6", modelID: "ppio/pa/claude-opus-4-6", providerID: "anthropic", label: "Claude Opus 4.6" },
+      { id: "ppio/pa/claude-haiku-4-5", modelID: "ppio/pa/claude-haiku-4-5", providerID: "anthropic", label: "Claude Haiku 4.5" },
+    ],
+  },
+  {
+    providerID: "xiaomi",
+    name: "小米 Xiaomi",
+    models: [
+      { id: "xiaomi/mimo-v2.5-pro", modelID: "xiaomi/mimo-v2.5-pro", providerID: "xiaomi", label: "MiMo v2.5 Pro" },
+      { id: "xiaomi/mimo-v2-pro", modelID: "xiaomi/mimo-v2-pro", providerID: "xiaomi", label: "MiMo v2 Pro" },
+    ],
+  },
+  {
+    providerID: "openai",
+    name: "OpenAI",
+    models: [
+      { id: "azure_openai/gpt-5.2", modelID: "azure_openai/gpt-5.2", providerID: "openai", label: "GPT-5.2" },
+      { id: "azure_openai/gpt-5", modelID: "azure_openai/gpt-5", providerID: "openai", label: "GPT-5" },
+    ],
+  },
+  {
+    providerID: "google",
+    name: "Google (Gemini)",
+    models: [
+      { id: "vertex_ai/gemini-3.1-pro-preview", modelID: "vertex_ai/gemini-3.1-pro-preview", providerID: "google", label: "Gemini 3.1 Pro" },
+      { id: "vertex_ai/gemini-2.5-pro", modelID: "vertex_ai/gemini-2.5-pro", providerID: "google", label: "Gemini 2.5 Pro" },
     ],
   },
 ];
