@@ -205,6 +205,19 @@ function processAssistantOutput(task: TaskRun, text: string, jsonTag: string): v
     return;
   }
 
+  if (task.phase === "reporting") {
+    const errTask = {
+      ...task,
+      phase: "failed" as TaskPhase,
+      status: "error" as const,
+      error: { code: "no_report", message: "AI 未生成报告，请重试" },
+      updatedAt: new Date().toISOString(),
+    };
+    store.saveTask(errTask);
+    publish({ type: "task.error", taskId: task.id, error: "AI 未生成报告，请重试", at: errTask.updatedAt });
+    return;
+  }
+
   const updated = {
     ...task,
     phase: "clarifying" as TaskPhase,
@@ -335,10 +348,27 @@ function extractJsonBlock(text: string, tag: string): unknown | null {
   const start = text.indexOf(open);
   const end = text.indexOf(close);
   if (start === -1 || end === -1 || end <= start) return null;
+
+  const raw = text.slice(start + open.length, end).trim();
+
   try {
-    return JSON.parse(text.slice(start + open.length, end).trim());
+    return JSON.parse(raw);
   } catch {
-    return null;
+    // 尝试修复常见的 JSON 问题（AI 生成的未转义引号）
+    try {
+      const fixed = raw.replace(
+        /(?<=[\u4e00-\u9fff])"(?=[\u4e00-\u9fff])/g,
+        '\\"'
+      );
+      return JSON.parse(fixed);
+    } catch {
+      // 最后尝试用 Function 构造器解析（更宽松）
+      try {
+        return new Function(`return (${raw})`)() as unknown;
+      } catch {
+        return null;
+      }
+    }
   }
 }
 

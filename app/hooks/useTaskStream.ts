@@ -27,6 +27,8 @@ export function useTaskStream(taskId: string | null, onEvent: (e: TaskEvent) => 
       "task.phase.changed",
       "assistant.message.delta",
       "assistant.question.generated",
+      "task.log",
+      "report.section.added",
       "report.finalized",
       "task.error",
     ];

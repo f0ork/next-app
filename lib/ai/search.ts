@@ -1,3 +1,5 @@
+import { chromium } from "playwright";
+
 export interface SearchResult {
   title: string;
   url: string;
@@ -10,120 +12,86 @@ export interface SearchResponse {
   error?: string;
 }
 
-export async function webSearch(query: string, maxResults = 8): Promise<SearchResponse> {
+let browserInstance: Awaited<ReturnType<typeof chromium.launch>> | null = null;
+
+async function getBrowser() {
+  if (!browserInstance?.isConnected()) {
+    browserInstance = await chromium.launch({ headless: true });
+  }
+  return browserInstance;
+}
+
+export async function webSearch(
+  query: string,
+  maxResults = 8
+): Promise<SearchResponse> {
+  let page;
   try {
-    const params = new URLSearchParams({ q: query, kl: "cn-zh" });
-    const res = await fetch(`https://html.duckduckgo.com/html/?${params}`, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      },
-      signal: AbortSignal.timeout(10_000),
+    const browser = await getBrowser();
+    page = await browser.newPage();
+
+    const searchUrl = `https://www.bing.com/search?q=${encodeURIComponent(query)}`;
+    await page.goto(searchUrl, {
+      waitUntil: "domcontentloaded",
+      timeout: 15000,
     });
 
-    if (!res.ok) {
-      return { query, results: [], error: `DuckDuckGo returned ${res.status}` };
-    }
+    await page.waitForSelector("li.b_algo", { timeout: 8000 }).catch(() => {});
 
-    const html = await res.text();
-    const results = parseDuckDuckGoResults(html, maxResults);
+    const results: SearchResult[] = await page.evaluate((max: number) => {
+      const items: SearchResult[] = [];
+      document.querySelectorAll("li.b_algo").forEach((el, i) => {
+        if (i >= max) return;
+        const titleEl = el.querySelector("h2 a");
+        const snippetEl = el.querySelector(".b_caption p");
+        items.push({
+          title: titleEl?.textContent?.trim() || "",
+          url: (titleEl as HTMLAnchorElement)?.href || "",
+          snippet: snippetEl?.textContent?.trim() || "",
+        });
+      });
+      return items;
+    }, maxResults);
 
     return { query, results };
   } catch (err) {
     return {
       query,
       results: [],
-      error: err instanceof Error ? err.message : "unknown search error",
+      error: err instanceof Error ? err.message : "search failed",
     };
+  } finally {
+    await page?.close().catch(() => {});
   }
-}
-
-function parseDuckDuckGoResults(html: string, max: number): SearchResult[] {
-  const results: SearchResult[] = [];
-
-  const resultRegex = /<a[^>]+class="result__a"[^>]*href="([^"]*)"[^>]*>([^<]*)<\/a>/g;
-  const snippetRegex = /<a[^>]+class="result__snippet"[^>]*>([^<]*(?:<[^>]+>[^<]*)*)<\/a>/g;
-
-  const urls: string[] = [];
-  const titles: string[] = [];
-  const snippets: string[] = [];
-
-  let match: RegExpExecArray | null;
-
-  while ((match = resultRegex.exec(html)) !== null && urls.length < max) {
-    const rawUrl = match[1];
-    const decoded = rawUrl.includes("uddg=")
-      ? new URLSearchParams(rawUrl.split("?")[1]).get("uddg") ?? rawUrl
-      : rawUrl;
-    urls.push(decoded);
-    titles.push(decodeHtmlEntities(match[2].trim()));
-  }
-
-  while ((match = snippetRegex.exec(html)) !== null && snippets.length < max) {
-    snippets.push(decodeHtmlEntities(match[1].replace(/<[^>]+>/g, "").trim()));
-  }
-
-  for (let i = 0; i < Math.min(urls.length, max); i++) {
-    if (urls[i] && titles[i]) {
-      results.push({
-        title: titles[i],
-        url: urls[i],
-        snippet: snippets[i] ?? "",
-      });
-    }
-  }
-
-  return results;
-}
-
-function decodeHtmlEntities(s: string): string {
-  return s
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&#x27;/g, "'")
-    .replace(/&#x2F;/g, "/");
 }
 
 export async function fetchPageContent(
   url: string,
   maxLength = 3000
 ): Promise<{ url: string; title: string; content: string; error?: string }> {
+  let page;
   try {
-    const res = await fetch(url, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-      },
-      signal: AbortSignal.timeout(8_000),
-      redirect: "follow",
-    });
+    const browser = await getBrowser();
+    page = await browser.newPage();
 
-    if (!res.ok) {
-      return { url, title: "", content: "", error: `HTTP ${res.status}` };
-    }
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 12000 });
 
-    const html = await res.text();
-    const titleMatch = html.match(/<title[^>]*>([^<]*)<\/title>/i);
-    const title = titleMatch ? decodeHtmlEntities(titleMatch[1].trim()) : "";
+    const title = await page.title();
 
-    const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
-    const body = bodyMatch ? bodyMatch[1] : html;
+    const content = await page.evaluate((max: number) => {
+      const body = document.body;
+      if (!body) return "";
 
-    const text = body
-      .replace(/<script[\s\S]*?<\/script>/gi, "")
-      .replace(/<style[\s\S]*?<\/style>/gi, "")
-      .replace(/<nav[\s\S]*?<\/nav>/gi, "")
-      .replace(/<header[\s\S]*?<\/header>/gi, "")
-      .replace(/<footer[\s\S]*?<\/footer>/gi, "")
-      .replace(/<[^>]+>/g, " ")
-      .replace(/\s+/g, " ")
-      .trim()
-      .slice(0, maxLength);
+      const scripts = body.querySelectorAll(
+        "script, style, nav, header, footer, iframe, noscript"
+      );
+      scripts.forEach((el) => el.remove());
 
-    return { url, title, content: text };
+      const text = body.innerText || body.textContent || "";
+      return text.replace(/\s+/g, " ").trim().slice(0, max);
+    }, maxLength);
+
+    return { url, title, content };
   } catch (err) {
     return {
       url,
@@ -131,5 +99,12 @@ export async function fetchPageContent(
       content: "",
       error: err instanceof Error ? err.message : "fetch failed",
     };
+  } finally {
+    await page?.close().catch(() => {});
   }
+}
+
+export async function closeBrowser(): Promise<void> {
+  await browserInstance?.close().catch(() => {});
+  browserInstance = null;
 }
