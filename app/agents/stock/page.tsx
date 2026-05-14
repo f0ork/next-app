@@ -409,6 +409,8 @@ export default function StockAgentPage() {
                         <label className="text-xs text-gray-500 mb-1 block">跌 X% 买入</label>
                         <input
                           type="number"
+                          step="0.1"
+                          min="0"
                           value={simRule.buyTriggerPercent}
                           onChange={(e) => setSimRule({ ...simRule, buyTriggerPercent: Number(e.target.value) })}
                           className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2.5 py-1.5 text-sm text-gray-100 focus:outline-none focus:border-green-500"
@@ -418,6 +420,9 @@ export default function StockAgentPage() {
                         <label className="text-xs text-gray-500 mb-1 block">买入比例 %</label>
                         <input
                           type="number"
+                          step="1"
+                          min="0"
+                          max="100"
                           value={simRule.buyAmountPercent}
                           onChange={(e) => setSimRule({ ...simRule, buyAmountPercent: Number(e.target.value) })}
                           className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2.5 py-1.5 text-sm text-gray-100 focus:outline-none focus:border-green-500"
@@ -427,6 +432,8 @@ export default function StockAgentPage() {
                         <label className="text-xs text-gray-500 mb-1 block">涨 X% 卖出</label>
                         <input
                           type="number"
+                          step="0.1"
+                          min="0"
                           value={simRule.sellTriggerPercent}
                           onChange={(e) => setSimRule({ ...simRule, sellTriggerPercent: Number(e.target.value) })}
                           className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2.5 py-1.5 text-sm text-gray-100 focus:outline-none focus:border-green-500"
@@ -436,6 +443,9 @@ export default function StockAgentPage() {
                         <label className="text-xs text-gray-500 mb-1 block">卖出比例 %</label>
                         <input
                           type="number"
+                          step="1"
+                          min="0"
+                          max="100"
                           value={simRule.sellAmountPercent}
                           onChange={(e) => setSimRule({ ...simRule, sellAmountPercent: Number(e.target.value) })}
                           className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2.5 py-1.5 text-sm text-gray-100 focus:outline-none focus:border-green-500"

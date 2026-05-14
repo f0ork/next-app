@@ -56,20 +56,20 @@ export const DEFAULT_RULE: SimRule = {
 
 export const RULE_PRESETS: Array<{ name: string; rule: SimRule }> = [
   {
-    name: "稳健型（涨跌2%触发）",
+    name: "稳健型（涨跌2%）",
     rule: { buyTriggerPercent: -2, buyAmountPercent: 10, sellTriggerPercent: 2, sellAmountPercent: 10, initialCapital: 10000 },
   },
   {
-    name: "激进型（涨跌5%触发）",
-    rule: { buyTriggerPercent: -5, buyAmountPercent: 20, sellTriggerPercent: 5, sellAmountPercent: 20, initialCapital: 10000 },
+    name: "激进型（涨跌0.1%）",
+    rule: { buyTriggerPercent: -0.1, buyAmountPercent: 20, sellTriggerPercent: 0.1, sellAmountPercent: 20, initialCapital: 10000 },
   },
   {
     name: "定投型（每跌1%买5%）",
     rule: { buyTriggerPercent: -1, buyAmountPercent: 5, sellTriggerPercent: 100, sellAmountPercent: 0, initialCapital: 10000 },
   },
   {
-    name: "止盈型（涨10%全卖）",
-    rule: { buyTriggerPercent: -3, buyAmountPercent: 50, sellTriggerPercent: 10, sellAmountPercent: 100, initialCapital: 10000 },
+    name: "止盈型（涨5%全卖）",
+    rule: { buyTriggerPercent: -2, buyAmountPercent: 30, sellTriggerPercent: 5, sellAmountPercent: 100, initialCapital: 10000 },
   },
 ];
 
