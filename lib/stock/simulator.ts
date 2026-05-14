@@ -76,7 +76,6 @@ export const RULE_PRESETS: Array<{ name: string; rule: SimRule }> = [
 export function runSimulation(data: DailyData[], rule: SimRule, stockName: string): SimResult {
   let cash = rule.initialCapital;
   let holdings = 0;
-  let lastBuyPrice = 0;
   const trades: SimTrade[] = [];
   const snapshots: SimSnapshot[] = [];
 
@@ -84,6 +83,7 @@ export function runSimulation(data: DailyData[], rule: SimRule, stockName: strin
   let peakValue = rule.initialCapital;
   let wins = 0;
   let totalTrades = 0;
+  let lastSellPrice = 0;
 
   for (let i = 0; i < data.length; i++) {
     const day = data[i];
@@ -96,7 +96,6 @@ export function runSimulation(data: DailyData[], rule: SimRule, stockName: strin
       if (buyQty > 0) {
         holdings += buyQty;
         cash -= buyQty * price;
-        lastBuyPrice = price;
         trades.push({
           date: day.date,
           action: "buy",
@@ -108,50 +107,44 @@ export function runSimulation(data: DailyData[], rule: SimRule, stockName: strin
         });
         totalTrades++;
       }
-    } else if (holdings > 0 && lastBuyPrice > 0) {
-      const changeFromBuy = ((price - lastBuyPrice) / lastBuyPrice) * 100;
-
-      if (changeFromBuy <= rule.buyTriggerPercent) {
-        const buyAmount = cash * (rule.buyAmountPercent / 100);
-        const buyQty = Math.floor(buyAmount / price);
-        if (buyQty > 0) {
-          holdings += buyQty;
-          cash -= buyQty * price;
-          lastBuyPrice = price;
-          trades.push({
-            date: day.date,
-            action: "buy",
-            price,
-            quantity: buyQty,
-            amount: buyQty * price,
-            holdingsAfter: holdings,
-            cashAfter: Math.round(cash * 100) / 100,
-          });
-          totalTrades++;
-        }
-      } else if (changeFromBuy >= rule.sellTriggerPercent) {
-        const sellQty =
-          rule.sellAmountPercent >= 100
-            ? holdings
-            : Math.max(1, Math.floor(holdings * (rule.sellAmountPercent / 100)));
-        if (sellQty > 0 && sellQty <= holdings) {
-          const sellValue = sellQty * price;
-          const buyValue = sellQty * lastBuyPrice;
-          if (sellValue > buyValue) wins++;
-          holdings -= sellQty;
-          cash += sellValue;
-          trades.push({
-            date: day.date,
-            action: "sell",
-            price,
-            quantity: sellQty,
-            amount: sellValue,
-            holdingsAfter: holdings,
-            cashAfter: Math.round(cash * 100) / 100,
-          });
-          totalTrades++;
-          if (holdings === 0) lastBuyPrice = 0;
-        }
+    } else if (day.changePercent <= rule.buyTriggerPercent && cash > price) {
+      const buyAmount = cash * (rule.buyAmountPercent / 100);
+      const buyQty = Math.floor(buyAmount / price);
+      if (buyQty > 0) {
+        holdings += buyQty;
+        cash -= buyQty * price;
+        trades.push({
+          date: day.date,
+          action: "buy",
+          price,
+          quantity: buyQty,
+          amount: buyQty * price,
+          holdingsAfter: holdings,
+          cashAfter: Math.round(cash * 100) / 100,
+        });
+        totalTrades++;
+      }
+    } else if (day.changePercent >= rule.sellTriggerPercent && holdings > 0) {
+      const sellQty =
+        rule.sellAmountPercent >= 100
+          ? holdings
+          : Math.max(1, Math.floor(holdings * (rule.sellAmountPercent / 100)));
+      if (sellQty > 0 && sellQty <= holdings) {
+        const sellValue = sellQty * price;
+        if (lastSellPrice > 0 && price > lastSellPrice) wins++;
+        holdings -= sellQty;
+        cash += sellValue;
+        lastSellPrice = price;
+        trades.push({
+          date: day.date,
+          action: "sell",
+          price,
+          quantity: sellQty,
+          amount: sellValue,
+          holdingsAfter: holdings,
+          cashAfter: Math.round(cash * 100) / 100,
+        });
+        totalTrades++;
       }
     }
 
