@@ -3,8 +3,11 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import type { StockInfo, StockAnalysis } from "@/lib/stock/api";
+import type { SimRule, SimResult, SimTrade } from "@/lib/stock/simulator";
+import { DEFAULT_RULE, RULE_PRESETS } from "@/lib/stock/simulator";
 
 type Stage = "input" | "searching" | "selecting" | "loading" | "result";
+type Tab = "data" | "simulate" | "chat";
 
 export default function StockAgentPage() {
   const [stage, setStage] = useState<Stage>("input");
@@ -18,6 +21,10 @@ export default function StockAgentPage() {
   const [chatMessages, setChatMessages] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
   const [chatLoading, setChatLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const [activeTab, setActiveTab] = useState<Tab>("data");
+  const [simRule, setSimRule] = useState<SimRule>(DEFAULT_RULE);
+  const [simResult, setSimResult] = useState<SimResult | null>(null);
+  const [simLoading, setSimLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -77,6 +84,30 @@ export default function StockAgentPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "获取数据失败");
       setStage("selecting");
+    }
+  };
+
+  const handleSimulate = async () => {
+    if (!analysis) return;
+    setSimLoading(true);
+    try {
+      const res = await fetch("/api/agents/stock/simulate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          stockCode: analysis.stock.fullCode,
+          stockName: analysis.stock.name,
+          period: "1y",
+          rule: simRule,
+        }),
+      });
+      const data = (await res.json()) as { result?: SimResult; error?: string };
+      if (!res.ok || !data.result) throw new Error(data.error ?? "模拟失败");
+      setSimResult(data.result);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "模拟失败");
+    } finally {
+      setSimLoading(false);
     }
   };
 
@@ -262,7 +293,6 @@ export default function StockAgentPage() {
                     {analysis.summary.trend === "up" ? "📈" : analysis.summary.trend === "down" ? "📉" : "➡️"}
                   </div>
                 </div>
-
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                   <div>
                     <span className="text-xs text-gray-500">交易天数</span>
@@ -287,92 +317,262 @@ export default function StockAgentPage() {
                 </div>
               </div>
 
-              <div className="bg-gray-900/60 border border-gray-800 rounded-xl overflow-hidden">
-                <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
-                  <span className="text-sm font-medium text-gray-300">每日涨跌幅</span>
-                  <span className="text-xs text-gray-500">{analysis.period.start} ~ {analysis.period.end}</span>
-                </div>
-                <div className="max-h-64 overflow-y-auto">
-                  <table className="w-full text-xs">
-                    <thead className="sticky top-0 bg-gray-900">
-                      <tr className="text-gray-500">
-                        <th className="px-3 py-2 text-left">日期</th>
-                        <th className="px-3 py-2 text-right">开盘</th>
-                        <th className="px-3 py-2 text-right">收盘</th>
-                        <th className="px-3 py-2 text-right">最高</th>
-                        <th className="px-3 py-2 text-right">最低</th>
-                        <th className="px-3 py-2 text-right">涨跌幅</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {analysis.dailyData.map((d) => (
-                        <tr key={d.date} className="border-t border-gray-800/50 hover:bg-gray-800/30">
-                          <td className="px-3 py-2 text-gray-300">{d.date}</td>
-                          <td className="px-3 py-2 text-right text-gray-400">{d.open.toFixed(2)}</td>
-                          <td className="px-3 py-2 text-right text-gray-300 font-medium">{d.close.toFixed(2)}</td>
-                          <td className="px-3 py-2 text-right text-gray-400">{d.high.toFixed(2)}</td>
-                          <td className="px-3 py-2 text-right text-gray-400">{d.low.toFixed(2)}</td>
-                          <td className={`px-3 py-2 text-right font-medium ${
-                            d.changePercent > 0 ? "text-green-400" :
-                            d.changePercent < 0 ? "text-red-400" : "text-gray-400"
-                          }`}>
-                            {d.changePercent > 0 ? "+" : ""}{d.changePercent.toFixed(2)}%
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+              <div className="flex border-b border-gray-800">
+                {([
+                  { key: "data" as Tab, label: "数据表格" },
+                  { key: "simulate" as Tab, label: "模拟盘" },
+                  { key: "chat" as Tab, label: "数据问答" },
+                ]).map((tab) => (
+                  <button
+                    key={tab.key}
+                    onClick={() => setActiveTab(tab.key)}
+                    className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                      activeTab === tab.key
+                        ? "border-green-500 text-green-400"
+                        : "border-transparent text-gray-500 hover:text-gray-300"
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
               </div>
 
-              <div className="bg-gray-900/60 border border-gray-800 rounded-xl overflow-hidden">
-                <div className="px-4 py-3 border-b border-gray-800">
-                  <span className="text-sm font-medium text-gray-300">数据问答</span>
+              {activeTab === "data" && (
+                <div className="bg-gray-900/60 border border-gray-800 rounded-xl overflow-hidden">
+                  <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
+                    <span className="text-sm font-medium text-gray-300">每日涨跌幅</span>
+                    <span className="text-xs text-gray-500">{analysis.period.start} ~ {analysis.period.end}</span>
+                  </div>
+                  <div className="max-h-80 overflow-y-auto">
+                    <table className="w-full text-xs">
+                      <thead className="sticky top-0 bg-gray-900">
+                        <tr className="text-gray-500">
+                          <th className="px-3 py-2 text-left">日期</th>
+                          <th className="px-3 py-2 text-right">开盘</th>
+                          <th className="px-3 py-2 text-right">收盘</th>
+                          <th className="px-3 py-2 text-right">最高</th>
+                          <th className="px-3 py-2 text-right">最低</th>
+                          <th className="px-3 py-2 text-right">涨跌幅</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {analysis.dailyData.map((d) => (
+                          <tr key={d.date} className="border-t border-gray-800/50 hover:bg-gray-800/30">
+                            <td className="px-3 py-2 text-gray-300">{d.date}</td>
+                            <td className="px-3 py-2 text-right text-gray-400">{d.open.toFixed(2)}</td>
+                            <td className="px-3 py-2 text-right text-gray-300 font-medium">{d.close.toFixed(2)}</td>
+                            <td className="px-3 py-2 text-right text-gray-400">{d.high.toFixed(2)}</td>
+                            <td className="px-3 py-2 text-right text-gray-400">{d.low.toFixed(2)}</td>
+                            <td className={`px-3 py-2 text-right font-medium ${
+                              d.changePercent > 0 ? "text-green-400" :
+                              d.changePercent < 0 ? "text-red-400" : "text-gray-400"
+                            }`}>
+                              {d.changePercent > 0 ? "+" : ""}{d.changePercent.toFixed(2)}%
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
+              )}
 
-                <div className="h-64 overflow-y-auto px-4 py-3 space-y-3">
-                  {chatMessages.map((msg, i) => (
-                    <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                      <div className={`max-w-[80%] px-3 py-2 rounded-xl text-sm ${
-                        msg.role === "user"
-                          ? "bg-green-600 text-white rounded-tr-sm"
-                          : "bg-gray-800 text-gray-200 rounded-tl-sm"
-                      }`}>
-                        <span className="whitespace-pre-wrap">{msg.content}</span>
+              {activeTab === "simulate" && (
+                <div className="space-y-4">
+                  <div className="bg-gray-900/60 border border-gray-800 rounded-xl p-5 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-medium text-gray-300">策略配置</h3>
+                      <div className="flex gap-1.5">
+                        {RULE_PRESETS.map((preset) => (
+                          <button
+                            key={preset.name}
+                            onClick={() => setSimRule(preset.rule)}
+                            className="text-xs px-2 py-1 rounded-md bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-gray-200 transition-colors"
+                          >
+                            {preset.name.split("（")[0]}
+                          </button>
+                        ))}
                       </div>
                     </div>
-                  ))}
-                  {chatLoading && (
-                    <div className="flex justify-start">
-                      <div className="bg-gray-800 px-3 py-2 rounded-xl rounded-tl-sm flex gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-gray-500 animate-bounce" />
-                        <span className="w-1.5 h-1.5 rounded-full bg-gray-500 animate-bounce [animation-delay:150ms]" />
-                        <span className="w-1.5 h-1.5 rounded-full bg-gray-500 animate-bounce [animation-delay:300ms]" />
+
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                      <div>
+                        <label className="text-xs text-gray-500 mb-1 block">初始资金</label>
+                        <input
+                          type="number"
+                          value={simRule.initialCapital}
+                          onChange={(e) => setSimRule({ ...simRule, initialCapital: Number(e.target.value) })}
+                          className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2.5 py-1.5 text-sm text-gray-100 focus:outline-none focus:border-green-500"
+                        />
                       </div>
+                      <div>
+                        <label className="text-xs text-gray-500 mb-1 block">跌 X% 买入</label>
+                        <input
+                          type="number"
+                          value={simRule.buyTriggerPercent}
+                          onChange={(e) => setSimRule({ ...simRule, buyTriggerPercent: Number(e.target.value) })}
+                          className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2.5 py-1.5 text-sm text-gray-100 focus:outline-none focus:border-green-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-500 mb-1 block">买入比例 %</label>
+                        <input
+                          type="number"
+                          value={simRule.buyAmountPercent}
+                          onChange={(e) => setSimRule({ ...simRule, buyAmountPercent: Number(e.target.value) })}
+                          className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2.5 py-1.5 text-sm text-gray-100 focus:outline-none focus:border-green-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-500 mb-1 block">涨 X% 卖出</label>
+                        <input
+                          type="number"
+                          value={simRule.sellTriggerPercent}
+                          onChange={(e) => setSimRule({ ...simRule, sellTriggerPercent: Number(e.target.value) })}
+                          className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2.5 py-1.5 text-sm text-gray-100 focus:outline-none focus:border-green-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-500 mb-1 block">卖出比例 %</label>
+                        <input
+                          type="number"
+                          value={simRule.sellAmountPercent}
+                          onChange={(e) => setSimRule({ ...simRule, sellAmountPercent: Number(e.target.value) })}
+                          className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2.5 py-1.5 text-sm text-gray-100 focus:outline-none focus:border-green-500"
+                        />
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => void handleSimulate()}
+                      disabled={simLoading}
+                      className="w-full py-2.5 rounded-xl bg-gradient-to-r from-green-600 to-emerald-600 text-white font-medium text-sm hover:from-green-500 hover:to-emerald-500 disabled:opacity-40 transition-all"
+                    >
+                      {simLoading ? "回测中…" : "开始模拟"}
+                    </button>
+                  </div>
+
+                  {simResult && (
+                    <div className="space-y-4">
+                      <div className="bg-gray-900/60 border border-gray-800 rounded-xl p-5">
+                        <h3 className="text-sm font-medium text-gray-300 mb-3">回测结果</h3>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                          <div>
+                            <span className="text-xs text-gray-500">最终金额</span>
+                            <p className={`text-lg font-bold ${simResult.summary.totalReturn >= 0 ? "text-green-400" : "text-red-400"}`}>
+                              ¥{simResult.summary.finalValue.toLocaleString()}
+                            </p>
+                          </div>
+                          <div>
+                            <span className="text-xs text-gray-500">总收益率</span>
+                            <p className={`text-lg font-bold ${simResult.summary.totalReturnPercent >= 0 ? "text-green-400" : "text-red-400"}`}>
+                              {simResult.summary.totalReturnPercent > 0 ? "+" : ""}{simResult.summary.totalReturnPercent}%
+                            </p>
+                          </div>
+                          <div>
+                            <span className="text-xs text-gray-500">买入/卖出</span>
+                            <p className="text-lg font-bold text-white">
+                              {simResult.summary.totalBuys} / {simResult.summary.totalSells}
+                            </p>
+                          </div>
+                          <div>
+                            <span className="text-xs text-gray-500">最大回撤</span>
+                            <p className="text-lg font-bold text-red-400">
+                              -{simResult.summary.maxDrawdownPercent}%
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {simResult.trades.length > 0 && (
+                        <div className="bg-gray-900/60 border border-gray-800 rounded-xl overflow-hidden">
+                          <div className="px-4 py-3 border-b border-gray-800">
+                            <span className="text-sm font-medium text-gray-300">交易记录</span>
+                          </div>
+                          <div className="max-h-48 overflow-y-auto">
+                            <table className="w-full text-xs">
+                              <thead className="sticky top-0 bg-gray-900">
+                                <tr className="text-gray-500">
+                                  <th className="px-3 py-2 text-left">日期</th>
+                                  <th className="px-3 py-2 text-left">操作</th>
+                                  <th className="px-3 py-2 text-right">价格</th>
+                                  <th className="px-3 py-2 text-right">数量</th>
+                                  <th className="px-3 py-2 text-right">金额</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {simResult.trades.map((t: SimTrade, i: number) => (
+                                  <tr key={i} className="border-t border-gray-800/50">
+                                    <td className="px-3 py-2 text-gray-300">{t.date}</td>
+                                    <td className="px-3 py-2">
+                                      <span className={`text-xs px-1.5 py-0.5 rounded ${
+                                        t.action === "buy"
+                                          ? "bg-green-900/50 text-green-400"
+                                          : "bg-red-900/50 text-red-400"
+                                      }`}>
+                                        {t.action === "buy" ? "买入" : "卖出"}
+                                      </span>
+                                    </td>
+                                    <td className="px-3 py-2 text-right text-gray-300">{t.price.toFixed(2)}</td>
+                                    <td className="px-3 py-2 text-right text-gray-400">{t.quantity}</td>
+                                    <td className="px-3 py-2 text-right text-gray-300">¥{t.amount.toFixed(2)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
-                  <div ref={chatEndRef} />
                 </div>
+              )}
 
-                <div className="px-4 py-3 border-t border-gray-800 flex gap-2">
-                  <input
-                    type="text"
-                    value={chatInput}
-                    onChange={(e) => setChatInput(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") void handleChat(); }}
-                    placeholder="问一个关于这只股票的问题…"
-                    disabled={chatLoading}
-                    className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-green-500 disabled:opacity-50 transition-colors"
-                  />
-                  <button
-                    onClick={() => void handleChat()}
-                    disabled={!chatInput.trim() || chatLoading}
-                    className="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-500 disabled:opacity-40 text-white text-sm font-medium transition-colors"
-                  >
-                    发送
-                  </button>
+              {activeTab === "chat" && (
+                <div className="bg-gray-900/60 border border-gray-800 rounded-xl overflow-hidden">
+                  <div className="h-64 overflow-y-auto px-4 py-3 space-y-3">
+                    {chatMessages.map((msg, i) => (
+                      <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                        <div className={`max-w-[80%] px-3 py-2 rounded-xl text-sm ${
+                          msg.role === "user"
+                            ? "bg-green-600 text-white rounded-tr-sm"
+                            : "bg-gray-800 text-gray-200 rounded-tl-sm"
+                        }`}>
+                          <span className="whitespace-pre-wrap">{msg.content}</span>
+                        </div>
+                      </div>
+                    ))}
+                    {chatLoading && (
+                      <div className="flex justify-start">
+                        <div className="bg-gray-800 px-3 py-2 rounded-xl rounded-tl-sm flex gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-gray-500 animate-bounce" />
+                          <span className="w-1.5 h-1.5 rounded-full bg-gray-500 animate-bounce [animation-delay:150ms]" />
+                          <span className="w-1.5 h-1.5 rounded-full bg-gray-500 animate-bounce [animation-delay:300ms]" />
+                        </div>
+                      </div>
+                    )}
+                    <div ref={chatEndRef} />
+                  </div>
+                  <div className="px-4 py-3 border-t border-gray-800 flex gap-2">
+                    <input
+                      type="text"
+                      value={chatInput}
+                      onChange={(e) => setChatInput(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") void handleChat(); }}
+                      placeholder="问一个关于这只股票的问题…"
+                      disabled={chatLoading}
+                      className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-green-500 disabled:opacity-50 transition-colors"
+                    />
+                    <button
+                      onClick={() => void handleChat()}
+                      disabled={!chatInput.trim() || chatLoading}
+                      className="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-500 disabled:opacity-40 text-white text-sm font-medium transition-colors"
+                    >
+                      发送
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div className="text-center">
                 <button
@@ -382,6 +582,8 @@ export default function StockAgentPage() {
                     setChatMessages([]);
                     setSelectedStock(null);
                     setStockName("");
+                    setSimResult(null);
+                    setActiveTab("data");
                   }}
                   className="text-sm text-gray-500 hover:text-gray-300 transition-colors"
                 >
