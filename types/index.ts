@@ -1,4 +1,4 @@
-export type AgentId = "research";
+export type AgentId = "research" | "stock";
 
 export type ResearchMode =
   | "competitor_analysis"

@@ -10,6 +10,14 @@ const agents = [
     color: "from-blue-500 to-indigo-600",
     badge: "可用",
   },
+  {
+    id: "stock",
+    icon: "📈",
+    name: "股票分析",
+    description: "输入股票名称，获取涨跌幅数据，支持数据问答",
+    color: "from-green-500 to-emerald-600",
+    badge: "可用",
+  },
 ];
 
 export default function AgentsPage() {
