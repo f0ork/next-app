@@ -3,7 +3,7 @@ import { generateText, streamText, tool, stepCountIs } from "ai";
 import { z } from "zod";
 import { webSearch, fetchPageContent } from "./search";
 
-const DEFAULT_MODEL_ID = process.env.AI_MODEL_ID ?? "xiaomi/mimo-v2.5-pro";
+const DEFAULT_MODEL_ID = process.env.AI_MODEL_ID ?? "ppio/pa/claude-sonnet-4-6";
 
 function ensureV1Suffix(url: string): string {
   const clean = url.replace(/\/+$/, "");
@@ -23,8 +23,10 @@ function getProvider() {
 }
 
 function getModel(modelId?: string) {
+  const finalModelId = modelId ?? DEFAULT_MODEL_ID;
+  console.log("[AI] using model:", finalModelId);
   const provider = getProvider();
-  return provider(modelId ?? DEFAULT_MODEL_ID);
+  return provider(finalModelId);
 }
 
 const searchTool = tool({

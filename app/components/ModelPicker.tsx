@@ -16,13 +16,10 @@ interface ProviderGroup {
 }
 
 const STORAGE_KEY = "selected_model_id";
-const DEFAULT_MODEL = "xiaomi/mimo-v2.5-pro";
+const DEFAULT_MODEL = "ppio/pa/claude-sonnet-4-6";
 
 export function useSelectedModel() {
-  const [modelId, setModelId] = useState<string>(() => {
-    if (typeof window === "undefined") return DEFAULT_MODEL;
-    return localStorage.getItem(STORAGE_KEY) ?? DEFAULT_MODEL;
-  });
+  const [modelId, setModelId] = useState<string>(DEFAULT_MODEL);
 
   const select = (id: string) => {
     setModelId(id);
