@@ -48,12 +48,14 @@ export async function POST(req: NextRequest) {
   let stock: StockInfo | undefined;
 
   if (stockCode) {
-    const parts = stockCode.match(/^([a-z]+)(\d+)$/);
+    const parts = stockCode.match(/^([a-zA-Z]+)(.+)$/);
     if (parts) {
       stock = {
         code: parts[2],
         name: stockName ?? stockCode,
-        market: parts[1] === "sh" ? "上海" : parts[1] === "sz" ? "深圳" : parts[1],
+        market: parts[1].toLowerCase() === "sh" ? "上海" :
+                parts[1].toLowerCase() === "sz" ? "深圳" :
+                parts[1].toLowerCase() === "us" ? "美股" : parts[1],
         fullCode: stockCode,
       };
     }
