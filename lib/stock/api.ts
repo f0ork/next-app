@@ -47,9 +47,15 @@ export async function searchStock(keyword: string): Promise<StockInfo[]> {
         const market = parts[0];
         const code = parts[1];
         const name = parts[2];
-        const fullCode = `${market}${code}`;
 
         if (market && code && name) {
+          let fullCode: string;
+          if (market === "us") {
+            fullCode = `us${code.toUpperCase()}`;
+          } else {
+            fullCode = `${market}${code}`;
+          }
+
           results.push({
             code,
             name: decodeUnicode(name),
