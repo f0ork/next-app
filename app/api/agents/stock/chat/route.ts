@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
-import { callAI } from "@/lib/ai/client";
+import { NextRequest } from "next/server";
+import { streamText } from "ai";
+import { getModel } from "@/lib/ai/client";
 import type { StockAnalysis } from "@/lib/stock/api";
 
 export const runtime = "nodejs";
@@ -11,7 +12,10 @@ export async function POST(req: NextRequest) {
   };
 
   if (!question?.trim() || !analysis) {
-    return NextResponse.json({ error: "question and analysis required" }, { status: 400 });
+    return new Response(JSON.stringify({ error: "question and analysis required" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 
   const context = buildAnalysisContext(analysis);
@@ -26,9 +30,14 @@ ${context}
 - 使用中文回答
 - 如果问题超出数据范围，诚实说明`;
 
-  const answer = await callAI(question, systemPrompt);
+  const result = streamText({
+    model: getModel(),
+    system: systemPrompt,
+    prompt: question,
+    maxOutputTokens: 4096,
+  });
 
-  return NextResponse.json({ answer });
+  return result.toTextStreamResponse();
 }
 
 function buildAnalysisContext(a: StockAnalysis): string {
@@ -42,18 +51,12 @@ function buildAnalysisContext(a: StockAnalysis): string {
   lines.push(`波动率：${a.summary.volatility}%`);
   lines.push(`趋势：${a.summary.trend === "up" ? "上涨" : a.summary.trend === "down" ? "下跌" : "横盘"}`);
   lines.push("");
-  lines.push("每日数据：");
-  lines.push("日期 | 开盘 | 收盘 | 最高 | 最低 | 涨跌幅%");
-  lines.push("-----|------|------|------|------|--------");
-
-  for (const d of a.dailyData.slice(-30)) {
+  lines.push(`每日数据（共 ${a.dailyData.length} 天）：`);
+  lines.push("日期,开盘,收盘,最高,最低,涨跌幅%");
+  for (const d of a.dailyData) {
     lines.push(
-      `${d.date} | ${d.open.toFixed(2)} | ${d.close.toFixed(2)} | ${d.high.toFixed(2)} | ${d.low.toFixed(2)} | ${d.changePercent > 0 ? "+" : ""}${d.changePercent.toFixed(2)}%`
+      `${d.date},${d.open.toFixed(2)},${d.close.toFixed(2)},${d.high.toFixed(2)},${d.low.toFixed(2)},${d.changePercent > 0 ? "+" : ""}${d.changePercent.toFixed(2)}%`
     );
-  }
-
-  if (a.dailyData.length > 30) {
-    lines.push(`... (共 ${a.dailyData.length} 天，仅显示最近 30 天)`);
   }
 
   return lines.join("\n");

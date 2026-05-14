@@ -22,7 +22,7 @@ function getProvider() {
   return createAnthropic({});
 }
 
-function getModel(modelId?: string) {
+export function getModel(modelId?: string) {
   const finalModelId = modelId ?? DEFAULT_MODEL_ID;
   console.log("[AI] using model:", finalModelId);
   const provider = getProvider();

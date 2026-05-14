@@ -87,24 +87,40 @@ export default function StockAgentPage() {
     setChatMessages((prev) => [...prev, { role: "user", content: question }]);
     setChatLoading(true);
 
+    const assistantIdx = chatMessages.length + 1;
+    setChatMessages((prev) => [...prev, { role: "assistant", content: "" }]);
+
     try {
       const res = await fetch("/api/agents/stock/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question, analysis }),
       });
-      const data = (await res.json()) as { answer?: string; error?: string };
 
-      if (!res.ok || !data.answer) {
-        throw new Error(data.error ?? "回答失败");
+      if (!res.ok || !res.body) {
+        throw new Error("请求失败");
       }
 
-      setChatMessages((prev) => [...prev, { role: "assistant", content: data.answer! }]);
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let fullText = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        fullText += decoder.decode(value, { stream: true });
+        setChatMessages((prev) =>
+          prev.map((m, i) => (i === assistantIdx ? { ...m, content: fullText } : m))
+        );
+      }
     } catch (err) {
-      setChatMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: `❌ ${err instanceof Error ? err.message : "请求失败"}` },
-      ]);
+      setChatMessages((prev) =>
+        prev.map((m, i) =>
+          i === assistantIdx
+            ? { ...m, content: `❌ ${err instanceof Error ? err.message : "请求失败"}` }
+            : m
+        )
+      );
     } finally {
       setChatLoading(false);
     }
