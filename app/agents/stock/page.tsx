@@ -395,7 +395,7 @@ export default function StockAgentPage() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                       <div>
                         <label className="text-xs text-gray-500 mb-1 block">初始资金</label>
                         <input
@@ -406,52 +406,48 @@ export default function StockAgentPage() {
                         />
                       </div>
                       <div>
-                        <label className="text-xs text-gray-500 mb-1 block">跌 X% 买入</label>
-                        <input
-                          type="number"
-                          step="0.1"
-                          min="0"
-                          value={simRule.buyTriggerPercent}
-                          onChange={(e) => setSimRule({ ...simRule, buyTriggerPercent: Number(e.target.value) })}
-                          className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2.5 py-1.5 text-sm text-gray-100 focus:outline-none focus:border-green-500"
-                        />
+                        <label className="text-xs text-gray-500 mb-1 block">买入条件</label>
+                        <div className="relative">
+                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-500">跌</span>
+                          <input
+                            type="number"
+                            step="0.1"
+                            value={simRule.buyTrigger}
+                            onChange={(e) => setSimRule({ ...simRule, buyTrigger: Number(e.target.value) })}
+                            className="w-full bg-gray-800 border border-gray-700 rounded-lg pl-7 pr-7 py-1.5 text-sm text-gray-100 focus:outline-none focus:border-green-500"
+                          />
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-500">%</span>
+                        </div>
                       </div>
                       <div>
-                        <label className="text-xs text-gray-500 mb-1 block">买入比例 %</label>
+                        <label className="text-xs text-gray-500 mb-1 block">卖出条件</label>
+                        <div className="relative">
+                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-500">涨</span>
+                          <input
+                            type="number"
+                            step="0.1"
+                            value={simRule.sellTrigger}
+                            onChange={(e) => setSimRule({ ...simRule, sellTrigger: Number(e.target.value) })}
+                            className="w-full bg-gray-800 border border-gray-700 rounded-lg pl-7 pr-7 py-1.5 text-sm text-gray-100 focus:outline-none focus:border-green-500"
+                          />
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-500">%</span>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-500 mb-1 block">交易比例 %</label>
                         <input
                           type="number"
                           step="1"
-                          min="0"
+                          min="1"
                           max="100"
-                          value={simRule.buyAmountPercent}
-                          onChange={(e) => setSimRule({ ...simRule, buyAmountPercent: Number(e.target.value) })}
-                          className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2.5 py-1.5 text-sm text-gray-100 focus:outline-none focus:border-green-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs text-gray-500 mb-1 block">涨 X% 卖出</label>
-                        <input
-                          type="number"
-                          step="0.1"
-                          min="0"
-                          value={simRule.sellTriggerPercent}
-                          onChange={(e) => setSimRule({ ...simRule, sellTriggerPercent: Number(e.target.value) })}
-                          className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2.5 py-1.5 text-sm text-gray-100 focus:outline-none focus:border-green-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs text-gray-500 mb-1 block">卖出比例 %</label>
-                        <input
-                          type="number"
-                          step="1"
-                          min="0"
-                          max="100"
-                          value={simRule.sellAmountPercent}
-                          onChange={(e) => setSimRule({ ...simRule, sellAmountPercent: Number(e.target.value) })}
+                          value={simRule.tradePercent}
+                          onChange={(e) => setSimRule({ ...simRule, tradePercent: Number(e.target.value) })}
                           className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2.5 py-1.5 text-sm text-gray-100 focus:outline-none focus:border-green-500"
                         />
                       </div>
                     </div>
+
+                    <p className="text-xs text-gray-600">T+1 规则：今天的涨跌幅决定明天的买入/卖出</p>
 
                     <button
                       onClick={() => void handleSimulate()}
@@ -505,6 +501,7 @@ export default function StockAgentPage() {
                                 <tr className="text-gray-500">
                                   <th className="px-3 py-2 text-left">日期</th>
                                   <th className="px-3 py-2 text-left">操作</th>
+                                  <th className="px-3 py-2 text-right">触发涨跌</th>
                                   <th className="px-3 py-2 text-right">价格</th>
                                   <th className="px-3 py-2 text-right">数量</th>
                                   <th className="px-3 py-2 text-right">金额</th>
@@ -521,6 +518,14 @@ export default function StockAgentPage() {
                                           : "bg-red-900/50 text-red-400"
                                       }`}>
                                         {t.action === "buy" ? "买入" : "卖出"}
+                                      </span>
+                                    </td>
+                                    <td className="px-3 py-2 text-right">
+                                      <span className={`text-xs ${
+                                        t.triggerChange > 0 ? "text-green-400" :
+                                        t.triggerChange < 0 ? "text-red-400" : "text-gray-400"
+                                      }`}>
+                                        {t.triggerChange > 0 ? "+" : ""}{t.triggerChange.toFixed(1)}%
                                       </span>
                                     </td>
                                     <td className="px-3 py-2 text-right text-gray-300">{t.price.toFixed(2)}</td>

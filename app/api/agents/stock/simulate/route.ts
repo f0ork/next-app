@@ -57,10 +57,9 @@ export async function POST(req: NextRequest) {
   }
 
   const effectiveRule = {
-    buyTriggerPercent: rule?.buyTriggerPercent ?? -2,
-    buyAmountPercent: rule?.buyAmountPercent ?? 10,
-    sellTriggerPercent: rule?.sellTriggerPercent ?? 2,
-    sellAmountPercent: rule?.sellAmountPercent ?? 10,
+    buyTrigger: rule?.buyTrigger ?? -2,
+    sellTrigger: rule?.sellTrigger ?? 2,
+    tradePercent: rule?.tradePercent ?? 10,
     initialCapital: rule?.initialCapital ?? 10000,
   };
 

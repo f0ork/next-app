@@ -1,21 +1,22 @@
 import type { DailyData } from "./api";
 
 export interface SimRule {
-  buyTriggerPercent: number;
-  buyAmountPercent: number;
-  sellTriggerPercent: number;
-  sellAmountPercent: number;
+  buyTrigger: number;
+  sellTrigger: number;
+  tradePercent: number;
   initialCapital: number;
 }
 
 export interface SimTrade {
   date: string;
+  signalDate: string;
   action: "buy" | "sell";
   price: number;
   quantity: number;
   amount: number;
   holdingsAfter: number;
   cashAfter: number;
+  triggerChange: number;
 }
 
 export interface SimSnapshot {
@@ -47,29 +48,28 @@ export interface SimResult {
 }
 
 export const DEFAULT_RULE: SimRule = {
-  buyTriggerPercent: -2,
-  buyAmountPercent: 10,
-  sellTriggerPercent: 2,
-  sellAmountPercent: 10,
+  buyTrigger: -2,
+  sellTrigger: 2,
+  tradePercent: 10,
   initialCapital: 10000,
 };
 
 export const RULE_PRESETS: Array<{ name: string; rule: SimRule }> = [
   {
-    name: "稳健型（涨跌2%）",
-    rule: { buyTriggerPercent: -2, buyAmountPercent: 10, sellTriggerPercent: 2, sellAmountPercent: 10, initialCapital: 10000 },
+    name: "稳健型",
+    rule: { buyTrigger: -2, sellTrigger: 2, tradePercent: 10, initialCapital: 10000 },
   },
   {
-    name: "激进型（涨跌0.1%）",
-    rule: { buyTriggerPercent: -0.1, buyAmountPercent: 20, sellTriggerPercent: 0.1, sellAmountPercent: 20, initialCapital: 10000 },
+    name: "激进型",
+    rule: { buyTrigger: -0.1, sellTrigger: 0.1, tradePercent: 20, initialCapital: 10000 },
   },
   {
-    name: "定投型（每跌1%买5%）",
-    rule: { buyTriggerPercent: -1, buyAmountPercent: 5, sellTriggerPercent: 100, sellAmountPercent: 0, initialCapital: 10000 },
+    name: "定投型",
+    rule: { buyTrigger: -1, sellTrigger: 100, tradePercent: 5, initialCapital: 10000 },
   },
   {
-    name: "止盈型（涨5%全卖）",
-    rule: { buyTriggerPercent: -2, buyAmountPercent: 30, sellTriggerPercent: 5, sellAmountPercent: 100, initialCapital: 10000 },
+    name: "止盈型",
+    rule: { buyTrigger: -3, sellTrigger: 5, tradePercent: 100, initialCapital: 10000 },
   },
 ];
 
@@ -85,70 +85,67 @@ export function runSimulation(data: DailyData[], rule: SimRule, stockName: strin
   let totalTrades = 0;
   let lastSellPrice = 0;
 
-  for (let i = 0; i < data.length; i++) {
-    const day = data[i];
-    const price = day.close;
-    if (price <= 0) continue;
+  for (let i = 1; i < data.length; i++) {
+    const signalDay = data[i - 1];
+    const execDay = data[i];
+    const execPrice = execDay.close;
+    if (execPrice <= 0) continue;
 
-    if (i === 0 && holdings === 0 && cash > 0) {
-      const buyAmount = cash * (rule.buyAmountPercent / 100);
-      const buyQty = Math.floor(buyAmount / price);
+    const signalChange = signalDay.changePercent;
+    let action: "buy" | "sell" | null = null;
+
+    if (signalChange <= rule.buyTrigger && cash > execPrice) {
+      action = "buy";
+    } else if (signalChange >= rule.sellTrigger && holdings > 0) {
+      action = "sell";
+    }
+
+    if (action === "buy") {
+      const buyAmount = cash * (rule.tradePercent / 100);
+      const buyQty = Math.floor(buyAmount / execPrice);
       if (buyQty > 0) {
         holdings += buyQty;
-        cash -= buyQty * price;
+        cash -= buyQty * execPrice;
         trades.push({
-          date: day.date,
+          date: execDay.date,
+          signalDate: signalDay.date,
           action: "buy",
-          price,
+          price: execPrice,
           quantity: buyQty,
-          amount: buyQty * price,
+          amount: buyQty * execPrice,
           holdingsAfter: holdings,
           cashAfter: Math.round(cash * 100) / 100,
+          triggerChange: signalChange,
         });
         totalTrades++;
       }
-    } else if (day.changePercent <= rule.buyTriggerPercent && cash > price) {
-      const buyAmount = cash * (rule.buyAmountPercent / 100);
-      const buyQty = Math.floor(buyAmount / price);
-      if (buyQty > 0) {
-        holdings += buyQty;
-        cash -= buyQty * price;
-        trades.push({
-          date: day.date,
-          action: "buy",
-          price,
-          quantity: buyQty,
-          amount: buyQty * price,
-          holdingsAfter: holdings,
-          cashAfter: Math.round(cash * 100) / 100,
-        });
-        totalTrades++;
-      }
-    } else if (day.changePercent >= rule.sellTriggerPercent && holdings > 0) {
+    } else if (action === "sell") {
       const sellQty =
-        rule.sellAmountPercent >= 100
+        rule.tradePercent >= 100
           ? holdings
-          : Math.max(1, Math.floor(holdings * (rule.sellAmountPercent / 100)));
+          : Math.max(1, Math.floor(holdings * (rule.tradePercent / 100)));
       if (sellQty > 0 && sellQty <= holdings) {
-        const sellValue = sellQty * price;
-        if (lastSellPrice > 0 && price > lastSellPrice) wins++;
+        const sellValue = sellQty * execPrice;
+        if (lastSellPrice > 0 && execPrice > lastSellPrice) wins++;
         holdings -= sellQty;
         cash += sellValue;
-        lastSellPrice = price;
+        lastSellPrice = execPrice;
         trades.push({
-          date: day.date,
+          date: execDay.date,
+          signalDate: signalDay.date,
           action: "sell",
-          price,
+          price: execPrice,
           quantity: sellQty,
           amount: sellValue,
           holdingsAfter: holdings,
           cashAfter: Math.round(cash * 100) / 100,
+          triggerChange: signalChange,
         });
         totalTrades++;
       }
     }
 
-    const totalValue = cash + holdings * price;
+    const totalValue = cash + holdings * execPrice;
     const changePercent =
       rule.initialCapital > 0
         ? ((totalValue - rule.initialCapital) / rule.initialCapital) * 100
@@ -160,8 +157,8 @@ export function runSimulation(data: DailyData[], rule: SimRule, stockName: strin
 
     if (i % 5 === 0 || i === data.length - 1) {
       snapshots.push({
-        date: day.date,
-        price,
+        date: execDay.date,
+        price: execPrice,
         holdings,
         cash: Math.round(cash * 100) / 100,
         totalValue: Math.round(totalValue * 100) / 100,
