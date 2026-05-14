@@ -29,6 +29,13 @@ export interface StockAnalysis {
   };
 }
 
+const INDEX_TO_ETF: Record<string, { code: string; name: string }> = {
+  ndx: { code: "QQQ", name: "Invesco QQQ (纳斯达克100 ETF)" },
+  spx: { code: "SPY", name: "SPDR S&P 500 ETF" },
+  dji: { code: "DIA", name: "SPDR Dow Jones ETF" },
+  ixic: { code: "QQQ", name: "Invesco QQQ (纳斯达克100 ETF)" },
+};
+
 export async function searchStock(keyword: string): Promise<StockInfo[]> {
   try {
     const url = `https://smartbox.gtimg.cn/s3/?v=2&q=${encodeURIComponent(keyword)}&t=all&c=1`;
@@ -50,15 +57,28 @@ export async function searchStock(keyword: string): Promise<StockInfo[]> {
 
         if (market && code && name) {
           let fullCode: string;
+          let displayName = decodeUnicode(name);
+          let displayCode = code;
+
           if (market === "us") {
-            fullCode = `us${code.toUpperCase()}`;
+            const upperCode = code.toUpperCase().split(".")[0];
+            const etf = INDEX_TO_ETF[upperCode.toLowerCase()];
+            if (etf) {
+              displayCode = etf.code;
+              displayName = etf.name;
+              fullCode = `us${etf.code}.OQ`;
+            } else if (code.includes(".")) {
+              fullCode = `us${code.toUpperCase()}`;
+            } else {
+              fullCode = `us${code.toUpperCase()}.OQ`;
+            }
           } else {
             fullCode = `${market}${code}`;
           }
 
           results.push({
-            code,
-            name: decodeUnicode(name),
+            code: displayCode,
+            name: displayName,
             market: market === "sh" ? "上海" : market === "sz" ? "深圳" : market === "hk" ? "港股" : market === "us" ? "美股" : market,
             fullCode,
           });
