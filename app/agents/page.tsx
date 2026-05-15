@@ -18,6 +18,14 @@ const agents = [
     color: "from-green-500 to-emerald-600",
     badge: "可用",
   },
+  {
+    id: "idea",
+    icon: "💡",
+    name: "点子王",
+    description: "输入关键词，AI 搜索网络找灵感，设计新 Agent",
+    color: "from-yellow-500 to-orange-600",
+    badge: "可用",
+  },
 ];
 
 export default function AgentsPage() {
