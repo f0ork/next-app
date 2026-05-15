@@ -36,10 +36,11 @@ const SYSTEM_PROMPT = `你是一个产品经理级别的 Agent 设计专家。�
 重要：用 web_search 工具搜索相关技术方案和竞品，确保方案可行。`;
 
 export async function POST(req: NextRequest) {
-  const { keyword, idea, feedback } = (await req.json()) as {
+  const { keyword, idea, feedback, modelId } = (await req.json()) as {
     keyword?: string;
     idea?: { name: string; description: string; features: string[] };
     feedback?: string;
+    modelId?: string;
   };
 
   if (!idea?.name) {
@@ -58,7 +59,7 @@ export async function POST(req: NextRequest) {
   ].filter(Boolean).join("\n");
 
   const result = streamText({
-    model: getModel(),
+    model: getModel(modelId),
     system: SYSTEM_PROMPT,
     prompt: `基于以下选中的 Agent 点子，输出完整的产品需求文档：\n\n${context}\n\n请搜索相关技术方案和竞品，输出结构化的 JSON。`,
     tools: researchTools,

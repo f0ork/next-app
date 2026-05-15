@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
+import ModelPicker, { useSelectedModel } from "@/app/components/ModelPicker";
 
 interface IdeaProposal {
   id: string;
@@ -36,6 +37,7 @@ interface RefinedIdea {
 type Stage = "input" | "brainstorming" | "selecting" | "refining" | "result";
 
 export default function IdeaAgentPage() {
+  const { modelId } = useSelectedModel();
   const [stage, setStage] = useState<Stage>("input");
   const [keyword, setKeyword] = useState("");
   const [streamText, setStreamText] = useState("");
@@ -61,7 +63,7 @@ export default function IdeaAgentPage() {
       const res = await fetch("/api/agents/idea/brainstorm", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ keyword: keyword.trim() }),
+        body: JSON.stringify({ keyword: keyword.trim(), modelId }),
       });
 
       if (!res.ok || !res.body) {
@@ -111,6 +113,7 @@ export default function IdeaAgentPage() {
           keyword,
           idea: selectedIdea,
           feedback: feedback.trim() || undefined,
+          modelId,
         }),
       });
 
@@ -152,6 +155,9 @@ export default function IdeaAgentPage() {
         <div className="flex items-center gap-2">
           <span className="text-lg">💡</span>
           <span className="text-sm font-medium text-gray-200">点子王</span>
+        </div>
+        <div className="ml-auto">
+          <ModelPicker />
         </div>
       </header>
 
