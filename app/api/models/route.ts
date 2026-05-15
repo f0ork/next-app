@@ -117,6 +117,6 @@ function loadFromConfig(): ProviderGroup[] {
 
 export async function GET() {
   const groups = loadFromConfig();
-  const currentModel = process.env.AI_MODEL_ID ?? "ppio/pa/claude-sonnet-4-6";
+  const currentModel = process.env.AI_MODEL_ID ?? "xiaomi/mimo-v2.5-pro";
   return NextResponse.json({ groups, currentModel });
 }

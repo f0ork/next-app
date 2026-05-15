@@ -16,7 +16,7 @@ interface ProviderGroup {
 }
 
 const STORAGE_KEY = "selected_model_id";
-const DEFAULT_MODEL = "ppio/pa/claude-sonnet-4-6";
+const DEFAULT_MODEL = "xiaomi/mimo-v2.5-pro";
 
 export function useSelectedModel() {
   const [modelId, setModelId] = useState<string>(DEFAULT_MODEL);
