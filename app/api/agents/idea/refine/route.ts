@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
   ].filter(Boolean).join("\n");
 
   const result = streamText({
-    model: getModel(modelId),
+    model: getModel(modelId ?? "ppio/pa/claude-sonnet-4-6"),
     system: SYSTEM_PROMPT,
     prompt: `基于以下选中的 Agent 点子，输出完整的产品需求文档：\n\n${context}\n\n请搜索相关技术方案和竞品，输出结构化的 JSON。`,
     tools: researchTools,

@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
   const { modelId } = (await req.json().catch(() => ({}))) as { modelId?: string };
 
   const result = streamText({
-    model: getModel(modelId),
+    model: getModel(modelId ?? "ppio/pa/claude-sonnet-4-6"),
     system: SYSTEM_PROMPT,
     prompt: "请搜索最新热点和趋势，提取灵感关键词。重点关注：AI 工具、开发者工具、健康科技、SaaS、电商创新等方向。",
     tools: researchTools,

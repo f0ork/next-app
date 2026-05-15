@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
   }
 
   const result = streamText({
-    model: getModel(modelId),
+    model: getModel(modelId ?? "ppio/pa/claude-sonnet-4-6"),
     system: SYSTEM_PROMPT,
     prompt: `关键词：${keyword.trim()}\n\n请搜索相关趋势和痛点，提出 2-3 个 Agent 点子。`,
     tools: researchTools,
