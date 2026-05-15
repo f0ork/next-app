@@ -34,7 +34,14 @@ interface RefinedIdea {
   estimatedEffort: string;
 }
 
-type Stage = "input" | "brainstorming" | "selecting" | "refining" | "result";
+interface TrendingKeyword {
+  keyword: string;
+  reason: string;
+  heat: "hot" | "warm" | "cool";
+  category: string;
+}
+
+type Stage = "input" | "loading-trending" | "trending" | "brainstorming" | "selecting" | "refining" | "result";
 
 export default function IdeaAgentPage() {
   const { modelId } = useSelectedModel();
@@ -46,11 +53,61 @@ export default function IdeaAgentPage() {
   const [feedback, setFeedback] = useState("");
   const [refinedResult, setRefinedResult] = useState<RefinedIdea | null>(null);
   const [error, setError] = useState("");
+  const [trendingKeywords, setTrendingKeywords] = useState<TrendingKeyword[]>([]);
   const streamRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     streamRef.current?.scrollTo({ top: streamRef.current.scrollHeight, behavior: "smooth" });
   }, [streamText]);
+
+  const handleFetchTrending = async () => {
+    setStage("loading-trending");
+    setStreamText("");
+    setError("");
+
+    try {
+      const res = await fetch("/api/agents/idea/trending", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ modelId }),
+      });
+
+      if (!res.ok || !res.body) throw new Error("获取热点失败");
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let fullText = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        fullText += decoder.decode(value, { stream: true });
+        setStreamText(fullText);
+      }
+
+      const jsonMatch = fullText.match(/<IDEA_JSON>([\s\S]*?)<\/IDEA_JSON>/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[1].trim()) as {
+          trends?: Array<{ category: string; keywords: TrendingKeyword[] }>;
+        };
+        if (parsed.trends?.length) {
+          const allKeywords: TrendingKeyword[] = [];
+          for (const trend of parsed.trends) {
+            for (const kw of trend.keywords) {
+              allKeywords.push({ ...kw, category: trend.category });
+            }
+          }
+          setTrendingKeywords(allKeywords);
+          setStage("trending");
+          return;
+        }
+      }
+      throw new Error("AI 未返回有效结果，请重试");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "未知错误");
+      setStage("input");
+    }
+  };
 
   const handleBrainstorm = async () => {
     if (!keyword.trim()) return;
@@ -183,12 +240,134 @@ export default function IdeaAgentPage() {
                   />
                 </div>
 
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => void handleBrainstorm()}
+                    disabled={!keyword.trim()}
+                    className="flex-1 py-3.5 rounded-2xl bg-gradient-to-r from-yellow-600 to-orange-600 text-white font-medium text-sm hover:from-yellow-500 hover:to-orange-500 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                  >
+                    开始找点子
+                  </button>
+                  <button
+                    onClick={() => void handleFetchTrending()}
+                    className="px-5 py-3.5 rounded-2xl border border-gray-700 text-gray-300 hover:border-yellow-500 hover:text-yellow-400 text-sm transition-colors"
+                  >
+                    🔥 热点推荐
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+
+          {stage === "loading-trending" && (
+            <div className="space-y-4">
+              <div className="text-center">
+                <div className="inline-flex items-center gap-2 text-yellow-400 text-sm">
+                  <div className="w-4 h-4 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin" />
+                  AI 正在搜索最新热点…
+                </div>
+              </div>
+              <div
+                ref={streamRef}
+                className="bg-[#080812] border border-gray-800 rounded-xl h-48 overflow-y-auto px-4 py-3"
+              >
+                <pre className="text-xs text-gray-400 whitespace-pre-wrap font-mono leading-relaxed">
+                  {streamText}
+                  <span className="inline-block w-0.5 h-3 bg-yellow-400 animate-pulse ml-0.5 align-middle" />
+                </pre>
+              </div>
+            </div>
+          )}
+
+          {stage === "trending" && (
+            <>
+              <div className="text-center space-y-2">
+                <h2 className="text-lg font-semibold text-white">🔥 热点灵感</h2>
+                <p className="text-gray-500 text-sm">点击关键词直接开始调研</p>
+              </div>
+
+              <div className="space-y-4">
+                {["hot", "warm", "cool"].map((heat) => {
+                  const items = trendingKeywords.filter((k) => k.heat === heat);
+                  if (!items.length) return null;
+                  const label = heat === "hot" ? "🔥 热门" : heat === "warm" ? "⚡ 潜力" : "🌱 冷门机会";
+                  return (
+                    <div key={heat}>
+                      <div className="text-xs text-gray-600 mb-2">{label}</div>
+                      <div className="flex flex-wrap gap-2">
+                        {items.map((kw) => (
+                          <button
+                            key={kw.keyword}
+                            onClick={() => {
+                              setKeyword(kw.keyword);
+                              setTimeout(() => {
+                                void (async () => {
+                                  setStage("brainstorming");
+                                  setStreamText("");
+                                  setBrainstormResult(null);
+                                  setError("");
+                                  try {
+                                    const res = await fetch("/api/agents/idea/brainstorm", {
+                                      method: "POST",
+                                      headers: { "Content-Type": "application/json" },
+                                      body: JSON.stringify({ keyword: kw.keyword, modelId }),
+                                    });
+                                    if (!res.ok || !res.body) throw new Error("请求失败");
+                                    const reader = res.body.getReader();
+                                    const decoder = new TextDecoder();
+                                    let fullText = "";
+                                    while (true) {
+                                      const { done, value } = await reader.read();
+                                      if (done) break;
+                                      fullText += decoder.decode(value, { stream: true });
+                                      setStreamText(fullText);
+                                    }
+                                    const jsonMatch = fullText.match(/<IDEA_JSON>([\s\S]*?)<\/IDEA_JSON>/);
+                                    if (jsonMatch) {
+                                      const parsed = JSON.parse(jsonMatch[1].trim()) as BrainstormResult;
+                                      if (parsed.ideas?.length) {
+                                        setBrainstormResult(parsed);
+                                        setStage("selecting");
+                                        return;
+                                      }
+                                    }
+                                    throw new Error("AI 未返回有效结果，请重试");
+                                  } catch (err) {
+                                    setError(err instanceof Error ? err.message : "未知错误");
+                                    setStage("input");
+                                  }
+                                })();
+                              }, 100);
+                            }}
+                            className={`px-3 py-1.5 rounded-xl border text-sm transition-all ${
+                              heat === "hot"
+                                ? "border-red-500/50 bg-red-500/10 text-red-300 hover:bg-red-500/20"
+                                : heat === "warm"
+                                ? "border-orange-500/50 bg-orange-500/10 text-orange-300 hover:bg-orange-500/20"
+                                : "border-gray-600 bg-gray-800 text-gray-400 hover:border-gray-500"
+                            }`}
+                          >
+                            {kw.keyword}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="flex gap-3">
                 <button
-                  onClick={() => void handleBrainstorm()}
-                  disabled={!keyword.trim()}
-                  className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-yellow-600 to-orange-600 text-white font-medium text-sm hover:from-yellow-500 hover:to-orange-500 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                  onClick={() => { setTrendingKeywords([]); setStage("input"); }}
+                  className="px-4 py-2.5 rounded-xl border border-gray-700 text-gray-400 hover:border-gray-500 hover:text-gray-200 text-sm transition-colors"
                 >
-                  开始找点子
+                  返回
+                </button>
+                <button
+                  onClick={() => void handleFetchTrending()}
+                  className="px-4 py-2.5 rounded-xl border border-gray-700 text-gray-400 hover:border-yellow-500 hover:text-yellow-400 text-sm transition-colors"
+                >
+                  换一批
                 </button>
               </div>
             </>
