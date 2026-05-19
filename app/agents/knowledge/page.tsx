@@ -8,6 +8,7 @@ type Tab = "add" | "browse" | "chat" | "manage";
 interface KBEntry {
   id: string;
   title: string;
+  content?: string;
   summary: string;
   category: string;
   tags: string[];
@@ -33,6 +34,8 @@ export default function KnowledgeAgentPage() {
   const [chatInput, setChatInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterCategory, setFilterCategory] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -303,42 +306,94 @@ export default function KnowledgeAgentPage() {
         )}
 
         {tab === "browse" && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-white">知识库内容</h2>
-              <span className="text-xs text-gray-500">{entries.length} 条</span>
+          <div className="space-y-6">
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-gray-900/60 border border-gray-800 rounded-xl p-4">
+                <span className="text-xs text-gray-500 block mb-1">总条目</span>
+                <span className="text-2xl font-bold text-white">{entries.length}</span>
+              </div>
+              <div className="bg-gray-900/60 border border-gray-800 rounded-xl p-4">
+                <span className="text-xs text-gray-500 block mb-1">分类</span>
+                <span className="text-2xl font-bold text-white">{new Set(entries.map(e => e.category)).size}</span>
+              </div>
+              <div className="bg-gray-900/60 border border-gray-800 rounded-xl p-4">
+                <span className="text-xs text-gray-500 block mb-1">标签</span>
+                <span className="text-2xl font-bold text-white">{new Set(entries.flatMap(e => e.tags)).size}</span>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <input
+                type="text"
+                placeholder="搜索知识库…"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="flex-1 bg-gray-900 border border-gray-700 rounded-xl px-4 py-2.5 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-purple-500 transition-colors"
+              />
+              <select
+                value={filterCategory}
+                onChange={(e) => setFilterCategory(e.target.value)}
+                className="bg-gray-900 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-gray-100 focus:outline-none focus:border-purple-500 transition-colors"
+              >
+                <option value="">全部分类</option>
+                {Array.from(new Set(entries.map(e => e.category))).map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
             </div>
 
             {entries.length === 0 && (
-              <p className="text-gray-600 text-sm text-center py-8">知识库为空，请先录入内容</p>
+              <div className="text-center py-12">
+                <div className="text-4xl mb-3">📚</div>
+                <p className="text-gray-400 text-sm">知识库为空</p>
+                <p className="text-gray-600 text-xs mt-1">切换到「录入」标签开始添加内容</p>
+              </div>
             )}
 
-            {entries.map((entry) => (
-              <div key={entry.id} className="bg-gray-900/60 border border-gray-800 rounded-xl p-4">
-                <div className="flex items-start justify-between mb-2">
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-sm font-medium text-white truncate">{entry.title}</h3>
-                    <p className="text-xs text-gray-400 mt-1 line-clamp-2">{entry.summary}</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {entries
+                .filter(e => !filterCategory || e.category === filterCategory)
+                .filter(e => !searchQuery || e.title.includes(searchQuery) || e.summary.includes(searchQuery) || e.tags.some(t => t.includes(searchQuery)))
+                .map((entry) => (
+                <div key={entry.id} className="group bg-gray-900/60 border border-gray-800 rounded-xl p-4 hover:border-purple-600/40 transition-all">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <span className={`text-xs px-2 py-0.5 rounded shrink-0 ${
+                        entry.sourceType === "url" ? "bg-blue-900/30 text-blue-400 border border-blue-800/50" :
+                        entry.sourceType === "image" ? "bg-pink-900/30 text-pink-400 border border-pink-800/50" :
+                        entry.sourceType === "file" ? "bg-green-900/30 text-green-400 border border-green-800/50" :
+                        "bg-purple-900/30 text-purple-400 border border-purple-800/50"
+                      }`}>
+                        {entry.sourceType === "url" ? "🔗" : entry.sourceType === "image" ? "🖼" : entry.sourceType === "file" ? "📄" : "📝"}
+                      </span>
+                      <h3 className="text-sm font-medium text-white truncate">{entry.title}</h3>
+                    </div>
+                    <button
+                      onClick={() => void handleDelete(entry.id)}
+                      className="shrink-0 ml-2 text-xs text-gray-700 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+                    >
+                      ✕
+                    </button>
                   </div>
-                  <button
-                    onClick={() => void handleDelete(entry.id)}
-                    className="shrink-0 ml-3 text-xs text-gray-600 hover:text-red-400 transition-colors"
-                  >
-                    删除
-                  </button>
+                  <p className="text-xs text-gray-400 line-clamp-2 mb-3">{entry.summary || entry.content?.slice(0, 100) || ""}</p>
+                  <div className="flex items-center justify-between">
+                    <div className="flex flex-wrap gap-1">
+                      <span className="text-xs px-2 py-0.5 rounded bg-gray-800 text-gray-400">{entry.category}</span>
+                      {entry.tags.slice(0, 2).map((tag, i) => (
+                        <span key={i} className="text-xs px-2 py-0.5 rounded bg-gray-800/50 text-gray-500">{tag}</span>
+                      ))}
+                    </div>
+                    <span className="text-xs text-gray-600 shrink-0">{entry.createdAt.slice(0, 10)}</span>
+                  </div>
                 </div>
-                <div className="flex flex-wrap gap-1.5">
-                  <span className="text-xs px-2 py-0.5 rounded bg-purple-900/30 text-purple-400 border border-purple-800/50">
-                    {entry.category}
-                  </span>
-                  {entry.tags.slice(0, 3).map((tag, i) => (
-                    <span key={i} className="text-xs px-2 py-0.5 rounded bg-gray-800 text-gray-400">
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
+
+            {entries.length > 0 &&
+              entries.filter(e => !filterCategory || e.category === filterCategory)
+                .filter(e => !searchQuery || e.title.includes(searchQuery) || e.summary.includes(searchQuery) || e.tags.some(t => t.includes(searchQuery))).length === 0 && (
+              <p className="text-gray-600 text-sm text-center py-6">无匹配结果</p>
+            )}
           </div>
         )}
 
