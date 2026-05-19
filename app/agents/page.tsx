@@ -26,6 +26,14 @@ const agents = [
     color: "from-yellow-500 to-orange-600",
     badge: "可用",
   },
+  {
+    id: "knowledge",
+    icon: "📚",
+    name: "知识库",
+    description: "输入任何信息，AI 总结分类存储，支持对话问答",
+    color: "from-purple-500 to-violet-600",
+    badge: "可用",
+  },
 ];
 
 export default function AgentsPage() {
