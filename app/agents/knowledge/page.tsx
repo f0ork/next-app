@@ -288,7 +288,7 @@ export default function KnowledgeAgentPage() {
 
             <button
               onClick={() => void handleIngest()}
-              disabled={!inputContent.trim() || ingesting}
+              disabled={ingesting || ((inputType === "image" || inputType === "file") ? !pendingFile : !inputContent.trim())}
               className="w-full py-3 rounded-xl bg-gradient-to-r from-purple-600 to-violet-600 text-white font-medium text-sm hover:from-purple-500 hover:to-violet-500 disabled:opacity-40 transition-all"
             >
               {ingesting ? "AI 正在总结分类…" : "录入知识库"}
