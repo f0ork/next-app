@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 
-type Tab = "add" | "browse" | "chat" | "manage";
+type Tab = "browse" | "add" | "chat" | "manage";
 
 interface KBEntry {
   id: string;
@@ -21,6 +21,13 @@ interface ChatMessage {
   content: string;
   sources?: Array<{ id: string; title: string; category: string }>;
 }
+
+const NAV_ITEMS = [
+  { key: "browse" as Tab, icon: "📖", label: "浏览", desc: "查看知识库" },
+  { key: "add" as Tab, icon: "＋", label: "录入", desc: "添加新知识" },
+  { key: "chat" as Tab, icon: "💬", label: "问答", desc: "AI 知识问答" },
+  { key: "manage" as Tab, icon: "⚙", label: "管理", desc: "导入导出" },
+];
 
 export default function KnowledgeAgentPage() {
   const [tab, setTab] = useState<Tab>("browse");
@@ -168,37 +175,41 @@ export default function KnowledgeAgentPage() {
   const categories = Array.from(new Set(entries.map((e) => e.category)));
 
   return (
-    <div className="min-h-screen bg-[#0a0a14] text-gray-100 flex flex-col">
-      <header className="border-b border-gray-800 bg-[#080810] px-6 py-3 flex items-center gap-3">
-        <Link href="/agents" className="text-gray-500 hover:text-gray-300 text-sm">← 返回</Link>
-        <div className="w-px h-4 bg-gray-800" />
-        <div className="flex items-center gap-2">
+    <div className="h-screen bg-[#0a0a14] text-gray-100 flex overflow-hidden">
+      <nav className="w-56 shrink-0 bg-[#080810] border-r border-gray-800 flex flex-col">
+        <div className="px-4 py-4 border-b border-gray-800 flex items-center gap-2">
+          <Link href="/agents" className="text-gray-500 hover:text-gray-300 text-sm">←</Link>
+          <div className="w-px h-4 bg-gray-800" />
           <span className="text-lg">📚</span>
-          <span className="text-sm font-medium text-gray-200">知识库</span>
+          <span className="text-sm font-semibold text-white">知识库</span>
         </div>
-        <div className="ml-auto flex items-center gap-1">
-          {([
-            { key: "browse" as Tab, label: "浏览" },
-            { key: "add" as Tab, label: "＋ 录入" },
-            { key: "chat" as Tab, label: "问答" },
-            { key: "manage" as Tab, label: "管理" },
-          ]).map((t) => (
+
+        <div className="flex-1 py-2 space-y-0.5 px-2">
+          {NAV_ITEMS.map((item) => (
             <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-                tab === t.key
-                  ? "bg-purple-600/20 text-purple-400 border border-purple-600/40"
-                  : "text-gray-500 hover:text-gray-300"
+              key={item.key}
+              onClick={() => setTab(item.key)}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all ${
+                tab === item.key
+                  ? "bg-purple-600/15 text-purple-300 border border-purple-600/30"
+                  : "text-gray-400 hover:bg-gray-800/50 hover:text-gray-200"
               }`}
             >
-              {t.label}
+              <span className="text-base shrink-0">{item.icon}</span>
+              <div>
+                <div className="text-sm font-medium">{item.label}</div>
+                <div className="text-xs text-gray-600">{item.desc}</div>
+              </div>
             </button>
           ))}
         </div>
-      </header>
 
-      <div className="flex-1 overflow-y-auto px-6 py-8">
+        <div className="px-4 py-3 border-t border-gray-800 text-xs text-gray-600">
+          {stats.totalEntries} 条知识 · {stats.categories} 个分类
+        </div>
+      </nav>
+
+      <main className="flex-1 overflow-y-auto px-8 py-6">
         <div className="max-w-4xl mx-auto">
 
           {tab === "browse" && (
@@ -400,14 +411,13 @@ export default function KnowledgeAgentPage() {
           )}
 
           {tab === "chat" && (
-            <div className="flex flex-col h-[calc(100vh-160px)]">
+            <div className="flex flex-col h-[calc(100vh-48px)]">
               <div className="flex-1 overflow-y-auto space-y-3 pb-4">
                 {chatMessages.length === 0 && (
                   <div className="flex items-center justify-center h-full">
                     <div className="text-center space-y-2">
                       <div className="text-4xl mb-2">💬</div>
                       <p className="text-gray-400 text-sm">向知识库提问，AI 基于已有内容回答</p>
-                      <p className="text-gray-600 text-xs">支持自然语言问答</p>
                     </div>
                   </div>
                 )}
@@ -502,7 +512,7 @@ export default function KnowledgeAgentPage() {
           )}
 
         </div>
-      </div>
+      </main>
     </div>
   );
 }
