@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { chunkText, buildEntry } from "@/lib/kb/processor";
+import { buildEntry } from "@/lib/kb/processor";
 import { saveEntry } from "@/lib/kb/store";
 import { callAI } from "@/lib/ai/client";
 
@@ -130,21 +130,15 @@ ${extracted.slice(0, 3000)}
     }
   } catch { /* ignored */ }
 
-  const chunks = chunkText(extracted);
-  const entries = [];
-
-  for (const chunk of chunks) {
-    const entry = buildEntry(title, chunk, summary, category, tags, content || fileName || "", inputType as "text" | "url" | "file");
-    await saveEntry(entry);
-    entries.push({ id: entry.id, title: entry.title, category: entry.category });
-  }
+  const entry = buildEntry(title, extracted.slice(0, 10000), summary, category, tags, content || fileName || "", inputType as "text" | "url" | "file");
+  await saveEntry(entry);
 
   return NextResponse.json({
     ok: true,
+    id: entry.id,
     title,
     category,
     tags,
     summary,
-    chunks: entries.length,
   });
 }
