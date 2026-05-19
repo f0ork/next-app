@@ -24,7 +24,7 @@ interface ChatMessage {
 export default function KnowledgeAgentPage() {
   const [tab, setTab] = useState<Tab>("add");
   const [inputContent, setInputContent] = useState("");
-  const [inputType, setInputType] = useState<"text" | "url">("text");
+  const [inputType, setInputType] = useState<"text" | "url" | "image" | "file">("text");
   const [ingesting, setIngesting] = useState(false);
   const [ingestResult, setIngestResult] = useState<string | null>(null);
   const [entries, setEntries] = useState<KBEntry[]>([]);
@@ -32,6 +32,8 @@ export default function KnowledgeAgentPage() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -56,19 +58,35 @@ export default function KnowledgeAgentPage() {
   };
 
   const handleIngest = async () => {
-    if (!inputContent.trim() || ingesting) return;
+    if (ingesting) return;
+    if (inputType === "image" || inputType === "file") {
+      if (!pendingFile) return;
+    } else {
+      if (!inputContent.trim()) return;
+    }
+
     setIngesting(true);
     setIngestResult(null);
+
     try {
+      const formData = new FormData();
+      formData.append("inputType", inputType);
+
+      if (pendingFile && (inputType === "image" || inputType === "file")) {
+        formData.append("file", pendingFile);
+      } else {
+        formData.append("content", inputContent.trim());
+      }
+
       const res = await fetch("/api/agents/knowledge/ingest", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: inputContent.trim(), inputType }),
+        body: formData,
       });
       const data = (await res.json()) as { ok?: boolean; title?: string; category?: string; tags?: string[]; error?: string };
       if (!res.ok || !data.ok) throw new Error(data.error ?? "录入失败");
       setIngestResult(`已录入：${data.title}（${data.category}）标签：${data.tags?.join("、")}`);
       setInputContent("");
+      setPendingFile(null);
     } catch (err) {
       setIngestResult(`❌ ${err instanceof Error ? err.message : "录入失败"}`);
     } finally {
@@ -188,29 +206,85 @@ export default function KnowledgeAgentPage() {
               <p className="text-gray-500 text-sm">粘贴文字、输入链接，AI 自动总结分类</p>
             </div>
 
-            <div className="flex gap-2">
-              {(["text", "url"] as const).map((t) => (
+            <div className="flex gap-2 flex-wrap">
+              {([
+                { key: "text" as const, label: "📝 文字" },
+                { key: "url" as const, label: "🔗 链接" },
+                { key: "image" as const, label: "🖼 图片" },
+                { key: "file" as const, label: "📄 文件" },
+              ]).map((t) => (
                 <button
-                  key={t}
-                  onClick={() => setInputType(t)}
+                  key={t.key}
+                  onClick={() => { setInputType(t.key); setPendingFile(null); setInputContent(""); }}
                   className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
-                    inputType === t
+                    inputType === t.key
                       ? "bg-purple-600/20 text-purple-400 border border-purple-600/40"
                       : "text-gray-500 hover:text-gray-300 border border-gray-800"
                   }`}
                 >
-                  {t === "text" ? "文字" : "网页链接"}
+                  {t.label}
                 </button>
               ))}
             </div>
 
-            <textarea
-              value={inputContent}
-              onChange={(e) => setInputContent(e.target.value)}
-              placeholder={inputType === "url" ? "https://example.com/article" : "粘贴任何文字内容…"}
-              rows={6}
-              className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-purple-500 transition-colors resize-none"
-            />
+            {(inputType === "image" || inputType === "file") ? (
+              <div
+                className="w-full border-2 border-dashed border-gray-700 rounded-xl px-6 py-8 text-center cursor-pointer hover:border-purple-500 transition-colors"
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const file = e.dataTransfer.files[0];
+                  if (file) setPendingFile(file);
+                }}
+              >
+                {pendingFile ? (
+                  <div className="space-y-2">
+                    {inputType === "image" && pendingFile.type.startsWith("image/") && (
+                      <div className="w-20 h-20 mx-auto rounded-lg overflow-hidden border border-gray-700">
+                        <img src={URL.createObjectURL(pendingFile)} alt="" className="w-full h-full object-cover" />
+                      </div>
+                    )}
+                    <p className="text-sm text-gray-300">{pendingFile.name}</p>
+                    <p className="text-xs text-gray-500">{(pendingFile.size / 1024).toFixed(1)} KB</p>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setPendingFile(null); }}
+                      className="text-xs text-red-400 hover:text-red-300"
+                    >
+                      移除
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="text-3xl text-gray-600">{inputType === "image" ? "🖼" : "📄"}</div>
+                    <p className="text-sm text-gray-400">
+                      {inputType === "image" ? "拖拽或点击上传图片" : "拖拽或点击上传文件"}
+                    </p>
+                    <p className="text-xs text-gray-600">
+                      {inputType === "image" ? "PNG, JPG, WebP" : "TXT, MD, JSON, CSV 等文本文件"}
+                    </p>
+                  </div>
+                )}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept={inputType === "image" ? "image/*" : ".txt,.md,.json,.csv,.log,.xml,.yaml,.yml,.html,.css,.js,.ts"}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) setPendingFile(file);
+                  }}
+                  className="hidden"
+                />
+              </div>
+            ) : (
+              <textarea
+                value={inputContent}
+                onChange={(e) => setInputContent(e.target.value)}
+                placeholder={inputType === "url" ? "https://example.com/article" : "粘贴任何文字内容…"}
+                rows={6}
+                className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-purple-500 transition-colors resize-none"
+              />
+            )}
 
             <button
               onClick={() => void handleIngest()}
