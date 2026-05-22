@@ -45,12 +45,29 @@ const SYSTEM_PROMPT = `你是一个资深嵌入式系统工程师，擅长快速
 
 async function extractPdfText(buffer: Buffer): Promise<string> {
   try {
-    const pdf = await import("pdf-parse");
-    const parser = new pdf.PDFParse({ data: buffer });
-    await (parser as unknown as { load(): Promise<void> }).load();
-    const result = await parser.getText();
-    return result.text.slice(0, 50000);
-  } catch {
+    const PDFParser = (await import("pdf2json")).default;
+    const parser = new PDFParser();
+
+    const text = await new Promise<string>((resolve, reject) => {
+      parser.on("pdfParser_dataReady", (data: { Pages?: Array<{ Texts?: Array<{ R?: Array<{ T?: string }> }> }> }) => {
+        const pages = (data.Pages ?? []).map((page) => {
+          const texts = (page.Texts ?? [])
+            .flatMap((t) => (t.R ?? []).map((r) => decodeURIComponent(r.T ?? "")))
+            .join(" ");
+          return texts;
+        });
+        resolve(pages.join("\n\n").slice(0, 50000));
+      });
+      parser.on("pdfParser_dataError", (err: unknown) => {
+        const error = err instanceof Error ? err : new Error(String(err));
+        reject(error);
+      });
+      parser.parseBuffer(buffer);
+    });
+
+    return text;
+  } catch (e) {
+    console.error("[mcu] PDF parse error:", e);
     return "";
   }
 }
