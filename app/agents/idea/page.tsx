@@ -34,6 +34,22 @@ interface RefinedIdea {
   estimatedEffort: string;
 }
 
+function extractJson(text: string): unknown | null {
+  const tagMatch = text.match(/<IDEA_JSON>([\s\S]*?)<\/IDEA_JSON>/);
+  if (tagMatch) {
+    try { return JSON.parse(tagMatch[1].trim()); } catch { /* ignored */ }
+  }
+  const codeMatch = text.match(/```(?:json)?\s*\n([\s\S]*?)\n```/);
+  if (codeMatch) {
+    try { return JSON.parse(codeMatch[1].trim()); } catch { /* ignored */ }
+  }
+  const braceMatch = text.match(/(\{[\s\S]*\})/);
+  if (braceMatch) {
+    try { return JSON.parse(braceMatch[1]); } catch { /* ignored */ }
+  }
+  return null;
+}
+
 interface TrendingKeyword {
   keyword: string;
   reason: string;
@@ -85,22 +101,19 @@ export default function IdeaAgentPage() {
         setStreamText(fullText);
       }
 
-      const jsonMatch = fullText.match(/<IDEA_JSON>([\s\S]*?)<\/IDEA_JSON>/);
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[1].trim()) as {
-          trends?: Array<{ category: string; keywords: TrendingKeyword[] }>;
-        };
-        if (parsed.trends?.length) {
-          const allKeywords: TrendingKeyword[] = [];
-          for (const trend of parsed.trends) {
-            for (const kw of trend.keywords) {
-              allKeywords.push({ ...kw, category: trend.category });
-            }
+      const parsed = extractJson(fullText) as {
+        trends?: Array<{ category: string; keywords: TrendingKeyword[] }>;
+      } | null;
+      if (parsed?.trends?.length) {
+        const allKeywords: TrendingKeyword[] = [];
+        for (const trend of parsed.trends) {
+          for (const kw of trend.keywords) {
+            allKeywords.push({ ...kw, category: trend.category });
           }
-          setTrendingKeywords(allKeywords);
-          setStage("trending");
-          return;
         }
+        setTrendingKeywords(allKeywords);
+        setStage("trending");
+        return;
       }
       throw new Error("AI 未返回有效结果，请重试");
     } catch (err) {
@@ -139,14 +152,11 @@ export default function IdeaAgentPage() {
         setStreamText(fullText);
       }
 
-      const jsonMatch = fullText.match(/<IDEA_JSON>([\s\S]*?)<\/IDEA_JSON>/);
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[1].trim()) as BrainstormResult;
-        if (parsed.ideas?.length) {
-          setBrainstormResult(parsed);
-          setStage("selecting");
-          return;
-        }
+      const parsed = extractJson(fullText) as BrainstormResult | null;
+      if (parsed?.ideas?.length) {
+        setBrainstormResult(parsed);
+        setStage("selecting");
+        return;
       }
       throw new Error("AI 未返回有效结果，请重试");
     } catch (err) {
@@ -190,9 +200,8 @@ export default function IdeaAgentPage() {
         setStreamText(fullText);
       }
 
-      const jsonMatch = fullText.match(/<IDEA_JSON>([\s\S]*?)<\/IDEA_JSON>/);
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[1].trim()) as RefinedIdea;
+      const parsed = extractJson(fullText) as RefinedIdea | null;
+      if (parsed?.name) {
         setRefinedResult(parsed);
         setStage("result");
         return;
@@ -322,14 +331,11 @@ export default function IdeaAgentPage() {
                                       fullText += decoder.decode(value, { stream: true });
                                       setStreamText(fullText);
                                     }
-                                    const jsonMatch = fullText.match(/<IDEA_JSON>([\s\S]*?)<\/IDEA_JSON>/);
-                                    if (jsonMatch) {
-                                      const parsed = JSON.parse(jsonMatch[1].trim()) as BrainstormResult;
-                                      if (parsed.ideas?.length) {
-                                        setBrainstormResult(parsed);
-                                        setStage("selecting");
-                                        return;
-                                      }
+                                    const parsed = extractJson(fullText) as BrainstormResult | null;
+                                    if (parsed?.ideas?.length) {
+                                      setBrainstormResult(parsed);
+                                      setStage("selecting");
+                                      return;
                                     }
                                     throw new Error("AI 未返回有效结果，请重试");
                                   } catch (err) {
