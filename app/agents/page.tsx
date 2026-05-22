@@ -36,6 +36,14 @@ const agents = [
     color: "from-purple-500 to-violet-600",
     badge: "可用",
   },
+  {
+    id: "mcu",
+    icon: "⚡",
+    name: "MCU手册速读",
+    description: "上传MCU数据手册，AI快速提炼关键设计要点",
+    color: "from-cyan-500 to-teal-600",
+    badge: "可用",
+  },
 ];
 
 export default function AgentsPage() {

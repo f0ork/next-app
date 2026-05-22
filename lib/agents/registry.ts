@@ -3,12 +3,14 @@ import { researchAgent } from "./research";
 import { stockAgent } from "./stock";
 import { ideaAgent } from "./idea";
 import { knowledgeAgent } from "./knowledge";
+import { mcuAgent } from "./mcu";
 
 const agents: Record<AgentId, AgentDefinition> = {
   research: researchAgent,
   stock: stockAgent,
   idea: ideaAgent,
   knowledge: knowledgeAgent,
+  mcu: mcuAgent,
 };
 
 export function getAgent(id: AgentId): AgentDefinition | undefined {

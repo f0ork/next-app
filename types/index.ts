@@ -1,4 +1,4 @@
-export type AgentId = "research" | "stock" | "idea" | "knowledge";
+export type AgentId = "research" | "stock" | "idea" | "knowledge" | "mcu";
 
 export type ResearchMode =
   | "competitor_analysis"
