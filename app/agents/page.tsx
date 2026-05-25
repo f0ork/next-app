@@ -44,6 +44,14 @@ const agents = [
     color: "from-cyan-500 to-teal-600",
     badge: "可用",
   },
+  {
+    id: "maas",
+    icon: "🧠",
+    name: "MaaS选型助手",
+    description: "输入业务需求，AI自动对比主流MaaS平台，生成选型报告",
+    color: "from-teal-500 to-emerald-600",
+    badge: "可用",
+  },
 ];
 
 export default function AgentsPage() {
