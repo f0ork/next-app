@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
+import ReactMarkdown from "react-markdown";
 
 type Stage = "input" | "analyzing" | "result";
 
@@ -151,10 +152,8 @@ export default function MaasAgentPage() {
                 </div>
               </div>
 
-              <div className="bg-gray-900/60 border border-gray-800 rounded-xl p-6">
-                <pre className="whitespace-pre-wrap font-sans leading-relaxed text-sm text-gray-200">
-                  {result}
-                </pre>
+              <div className="bg-gray-900/60 border border-gray-800 rounded-xl p-6 prose prose-invert prose-sm max-w-none">
+                <ReactMarkdown>{result}</ReactMarkdown>
               </div>
             </div>
           )}
