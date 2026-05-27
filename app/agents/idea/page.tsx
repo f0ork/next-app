@@ -59,6 +59,12 @@ interface TrendingKeyword {
 
 type Stage = "input" | "loading-trending" | "trending" | "brainstorming" | "selecting" | "refining" | "result";
 
+const STAGE_LABELS: Record<string, string[]> = {
+  brainstorming: ["🔍 正在搜索相关趋势…", "🤖 AI 正在分析灵感…"],
+  refining: ["🤖 AI 正在细化方案…"],
+  "loading-trending": ["🔍 正在搜索热点数据…", "🤖 AI 正在整理趋势…"],
+};
+
 export default function IdeaAgentPage() {
   const { modelId } = useSelectedModel();
   const [stage, setStage] = useState<Stage>("input");
@@ -70,14 +76,29 @@ export default function IdeaAgentPage() {
   const [refinedResult, setRefinedResult] = useState<RefinedIdea | null>(null);
   const [error, setError] = useState("");
   const [trendingKeywords, setTrendingKeywords] = useState<TrendingKeyword[]>([]);
+  const [stagePhase, setStagePhase] = useState(0);
+  const [searchElapsed, setSearchElapsed] = useState(0);
+  const searchTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const streamRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     streamRef.current?.scrollTo({ top: streamRef.current.scrollHeight, behavior: "smooth" });
   }, [streamText]);
 
+  useEffect(() => {
+    const isSearching = (stage === "brainstorming" || stage === "loading-trending") && stagePhase === 0;
+    if (isSearching) {
+      setSearchElapsed(0);
+      searchTimerRef.current = setInterval(() => setSearchElapsed((s) => s + 1), 1000);
+    } else {
+      if (searchTimerRef.current) { clearInterval(searchTimerRef.current); searchTimerRef.current = null; }
+    }
+    return () => { if (searchTimerRef.current) { clearInterval(searchTimerRef.current); searchTimerRef.current = null; } };
+  }, [stage, stagePhase]);
+
   const handleFetchTrending = async () => {
     setStage("loading-trending");
+    setStagePhase(0);
     setStreamText("");
     setError("");
 
@@ -93,11 +114,13 @@ export default function IdeaAgentPage() {
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let fullText = "";
+      let phaseUpdated = false;
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         fullText += decoder.decode(value, { stream: true });
+        if (!phaseUpdated) { setStagePhase(1); phaseUpdated = true; }
         setStreamText(fullText);
       }
 
@@ -125,6 +148,7 @@ export default function IdeaAgentPage() {
   const handleBrainstorm = async () => {
     if (!keyword.trim()) return;
     setStage("brainstorming");
+    setStagePhase(0);
     setStreamText("");
     setBrainstormResult(null);
     setError("");
@@ -143,12 +167,14 @@ export default function IdeaAgentPage() {
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let fullText = "";
+      let phaseUpdated = false;
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         const chunk = decoder.decode(value, { stream: true });
         fullText += chunk;
+        if (!phaseUpdated) { setStagePhase(1); phaseUpdated = true; }
         setStreamText(fullText);
       }
 
@@ -168,6 +194,7 @@ export default function IdeaAgentPage() {
   const handleRefine = async () => {
     if (!selectedIdea) return;
     setStage("refining");
+    setStagePhase(0);
     setStreamText("");
     setRefinedResult(null);
     setError("");
@@ -270,11 +297,14 @@ export default function IdeaAgentPage() {
 
           {stage === "loading-trending" && (
             <div className="space-y-4">
-              <div className="text-center">
+              <div className="text-center space-y-1">
                 <div className="inline-flex items-center gap-2 text-yellow-400 text-sm">
                   <div className="w-4 h-4 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin" />
-                  AI 正在搜索最新热点…
+                  {STAGE_LABELS["loading-trending"][stagePhase] ?? STAGE_LABELS["loading-trending"][0]}
                 </div>
+                {stagePhase === 0 && (
+                  <div className="text-xs text-gray-600">{searchElapsed}s · 搜索需要约 15 秒，请稍候</div>
+                )}
               </div>
               <div
                 ref={streamRef}
@@ -381,11 +411,14 @@ export default function IdeaAgentPage() {
 
           {(stage === "brainstorming" || stage === "refining") && (
             <div className="space-y-4">
-              <div className="text-center">
+              <div className="text-center space-y-1">
                 <div className="inline-flex items-center gap-2 text-yellow-400 text-sm">
                   <div className="w-4 h-4 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin" />
-                  {stage === "brainstorming" ? "AI 正在搜索网络找灵感…" : "AI 正在细化方案…"}
+                  {(STAGE_LABELS[stage]?.[stagePhase] ?? STAGE_LABELS[stage]?.[0])}
                 </div>
+                {stage === "brainstorming" && stagePhase === 0 && (
+                  <div className="text-xs text-gray-600">{searchElapsed}s · 搜索需要约 15 秒，请稍候</div>
+                )}
               </div>
 
               <div

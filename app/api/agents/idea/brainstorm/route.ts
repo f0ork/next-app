@@ -64,18 +64,20 @@ const SYSTEM_PROMPT = `你是一个 Agent 产品设计师，专门帮用户在�
 重要：feasibility 必须是 high，只提真正能做的东西。`;
 
 async function gatherContext(keyword: string): Promise<string> {
-  const parts: string[] = [];
-
   const queries = [
     `${keyword} AI 产品 趋势 2025`,
     `${keyword} 用户痛点 解决方案`,
     `${keyword} agent 自动化 创新`,
   ];
 
-  for (const q of queries) {
-    const result = await webSearch(q, 5);
+  // 并行搜索，将总时间从 ~30s 降至 ~10s
+  const results = await Promise.all(queries.map((q) => webSearch(q, 5)));
+
+  const parts: string[] = [];
+  for (let i = 0; i < queries.length; i++) {
+    const result = results[i];
     if (result.results.length) {
-      parts.push(`## 搜索: ${q}`);
+      parts.push(`## 搜索: ${queries[i]}`);
       for (const r of result.results) {
         parts.push(`- [${r.title}](${r.url})${r.snippet ? `: ${r.snippet}` : ""}`);
       }

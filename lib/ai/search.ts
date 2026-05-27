@@ -13,12 +13,18 @@ export interface SearchResponse {
 }
 
 let browserInstance: Awaited<ReturnType<typeof chromium.launch>> | null = null;
+let browserLaunchPromise: Promise<Awaited<ReturnType<typeof chromium.launch>>> | null = null;
 
 async function getBrowser() {
-  if (!browserInstance?.isConnected()) {
-    browserInstance = await chromium.launch({ headless: true });
+  if (browserInstance?.isConnected()) return browserInstance;
+  if (!browserLaunchPromise) {
+    browserLaunchPromise = chromium.launch({ headless: true }).then((b) => {
+      browserInstance = b;
+      browserLaunchPromise = null;
+      return b;
+    });
   }
-  return browserInstance;
+  return browserLaunchPromise;
 }
 
 export async function webSearch(

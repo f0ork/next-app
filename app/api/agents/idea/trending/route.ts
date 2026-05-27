@@ -44,11 +44,13 @@ async function gatherTrends(): Promise<string> {
     "健康科技 电商 AI 创新趋势",
   ];
 
+  const results = await Promise.all(queries.map((q) => webSearch(q, 5)));
+
   const parts: string[] = [];
-  for (const q of queries) {
-    const result = await webSearch(q, 5);
+  for (let i = 0; i < queries.length; i++) {
+    const result = results[i];
     if (result.results.length) {
-      parts.push(`## ${q}`);
+      parts.push(`## ${queries[i]}`);
       for (const r of result.results) {
         parts.push(`- [${r.title}](${r.url})${r.snippet ? `: ${r.snippet}` : ""}`);
       }

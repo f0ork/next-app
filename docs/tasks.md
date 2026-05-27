@@ -137,3 +137,17 @@
 - [ ] 代码审查 Agent
 
 ---
+
+## opencode-plugin-openspec 集成 — 完成
+
+> 完成：2026-05-26 | Commit：82de2e7 | 部署：待配置
+
+### 完成情况
+- [x] 新增 `opencode-plugin-openspec` 插件配置（`.opencode/opencode.json`）✅
+- [x] 添加 `opsx-propose/explore/apply/archive` 四个命令（`.opencode/commands/`）✅
+- [x] 添加对应 OpenSpec Skills（`.opencode/skills/`）✅
+- [x] 推送到 origin/main ✅
+
+**状态**：✅ 已提交推送，部署待配置（`DEPLOY_TARGET` 未设置）
+
+---
