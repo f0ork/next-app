@@ -2,6 +2,7 @@ import { createAnthropic } from "@ai-sdk/anthropic";
 import { generateText, streamText, tool, stepCountIs } from "ai";
 import { z } from "zod";
 import { webSearch, fetchPageContent } from "./search";
+import { getModel as getGatewayModel } from "@/lib/gateway";
 
 const DEFAULT_MODEL_ID = process.env.AI_MODEL_ID ?? "xiaomi/mimo-v2.5-pro";
 
@@ -27,6 +28,10 @@ export function getModel(modelId?: string) {
   console.log("[AI] using model:", finalModelId);
   const provider = getProvider();
   return provider(finalModelId);
+}
+
+export async function getAgentModel(agentId: string, modelOverride?: string) {
+  return getGatewayModel({ agentId, modelId: modelOverride });
 }
 
 const searchTool = tool({
@@ -66,17 +71,87 @@ export interface StreamCallbacks {
   onError: (err: string) => void;
 }
 
+export async function trackedGenerateText(
+  params: Parameters<typeof generateText>[0] & { agentId?: string; userId?: string }
+) {
+  const { agentId, userId, ...rest } = params;
+  const start = Date.now();
+  const result = await generateText(rest);
+  const duration = Date.now() - start;
+
+  const { recordUsage } = await import("@/lib/gateway");
+  await recordUsage({
+    userId,
+    agentId,
+    providerId: "mify",
+    modelId: DEFAULT_MODEL_ID,
+    inputTokens: result.usage?.inputTokens ?? 0,
+    outputTokens: result.usage?.outputTokens ?? 0,
+    durationMs: duration,
+  }).catch(() => {});
+
+  return result;
+}
+
+export async function trackedStreamText(
+  params: Parameters<typeof streamText>[0] & { agentId?: string; userId?: string }
+) {
+  const { agentId, userId, ...rest } = params;
+  const start = Date.now();
+  const result = streamText(rest);
+
+  const originalStream = result.textStream;
+  const usagePromise = result.usage;
+
+  const wrapped = {
+    ...result,
+    textStream: originalStream,
+    async recordUsage() {
+      const usage = await usagePromise;
+      const duration = Date.now() - start;
+      const { recordUsage: rec } = await import("@/lib/gateway");
+      await rec({
+        userId,
+        agentId,
+        providerId: "mify",
+        modelId: DEFAULT_MODEL_ID,
+        inputTokens: usage?.inputTokens ?? 0,
+        outputTokens: usage?.outputTokens ?? 0,
+        durationMs: duration,
+      }).catch(() => {});
+    },
+  };
+
+  return wrapped;
+}
+
 export async function callAI(
   prompt: string,
   systemPrompt?: string,
-  modelId?: string
+  modelId?: string,
+  agentId?: string,
+  userId?: string
 ): Promise<string> {
+  const start = Date.now();
   const result = await generateText({
     model: getModel(modelId),
     system: systemPrompt,
     prompt,
     maxOutputTokens: 4096,
   });
+  const duration = Date.now() - start;
+
+  const { recordUsage } = await import("@/lib/gateway");
+  await recordUsage({
+    userId,
+    agentId,
+    providerId: "mify",
+    modelId: modelId ?? DEFAULT_MODEL_ID,
+    inputTokens: result.usage?.inputTokens ?? 0,
+    outputTokens: result.usage?.outputTokens ?? 0,
+    durationMs: duration,
+  }).catch(() => {});
+
   return result.text;
 }
 
@@ -85,9 +160,12 @@ export async function streamResearch(
   systemPrompt: string,
   callbacks: StreamCallbacks,
   modelId?: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  agentId?: string,
+  userId?: string
 ): Promise<void> {
   let fullText = "";
+  const start = Date.now();
 
   try {
     const result = streamText({
@@ -110,6 +188,20 @@ export async function streamResearch(
       fullText += delta;
       callbacks.onDelta(delta);
     }
+
+    const usage = await result.usage;
+    const duration = Date.now() - start;
+
+    const { recordUsage } = await import("@/lib/gateway");
+    await recordUsage({
+      userId,
+      agentId,
+      providerId: "mify",
+      modelId: modelId ?? DEFAULT_MODEL_ID,
+      inputTokens: usage?.inputTokens ?? 0,
+      outputTokens: usage?.outputTokens ?? 0,
+      durationMs: duration,
+    }).catch(() => {});
 
     callbacks.onDone(fullText);
   } catch (err) {

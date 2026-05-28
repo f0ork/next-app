@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { AnalyzeResult } from "@/types";
 import { callAI } from "@/lib/ai/client";
+import { auth } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
@@ -31,6 +32,9 @@ const SYSTEM_PROMPT = `你是一个调研需求分析专家。用户会给你一
 维度设计原则：维度从宏观到细节，先确认调研范围，再定关注重点。选项要具体可操作，避免模糊表达。`;
 
 export async function POST(req: NextRequest) {
+  const session = await auth();
+  const userId = (session?.user as { id?: string })?.id;
+
   const { topic } = (await req.json()) as { topic: string };
   if (!topic?.trim()) {
     return NextResponse.json({ error: "topic is required" }, { status: 400 });
@@ -38,7 +42,10 @@ export async function POST(req: NextRequest) {
 
   const fullText = await callAI(
     `用户想调研：「${topic.trim()}」\n\n请分析需求并输出维度选项。`,
-    SYSTEM_PROMPT
+    SYSTEM_PROMPT,
+    undefined,
+    "research",
+    userId
   );
 
   const raw = extractJsonBlock(fullText, "ANALYZE_JSON") as AnalyzeResult | null;

@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { searchVectors, getEntry } from "@/lib/kb/store";
 import { callAI } from "@/lib/ai/client";
+import { auth } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
+  const session = await auth();
+  const userId = (session?.user as { id?: string })?.id;
+
   const { question } = (await req.json()) as { question: string };
   if (!question?.trim()) {
     return NextResponse.json({ error: "question required" }, { status: 400 });
@@ -36,7 +40,7 @@ ${context}
 - 回答时引用来源编号如 [来源1]
 - 如果内容不足以回答，诚实说明`;
 
-  const answer = await callAI(question.trim(), systemPrompt);
+  const answer = await callAI(question.trim(), systemPrompt, undefined, "knowledge", userId);
 
   return NextResponse.json({
     answer,

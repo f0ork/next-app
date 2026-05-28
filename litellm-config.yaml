@@ -1,0 +1,14 @@
+model_list:
+  - model_name: "xiaomi/mimo-v2.5-pro"
+    litellm_params:
+      model: "anthropic/xiaomi/mimo-v2.5-pro"
+      api_base: "https://api.llm.mioffice.cn/anthropic"
+      api_key: "sk-eAs1h8NXinec2oiJQcJh0aROIl8d0zDjuB7lpB2nzhscTzAo"
+
+general_settings:
+  master_key: "sk-litellm-master-key-change-me"
+  database_url: null
+
+litellm_settings:
+  drop_params: true
+  set_verbose: false

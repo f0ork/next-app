@@ -1,6 +1,8 @@
 import { NextRequest } from "next/server";
 import { streamText } from "ai";
 import { getModel } from "@/lib/ai/client";
+import { auth } from "@/lib/auth";
+import { recordUsage } from "@/lib/gateway";
 import { webSearch, fetchPageContent } from "@/lib/ai/search";
 
 export const runtime = "nodejs";
@@ -73,6 +75,9 @@ async function gatherContext(requirement: string): Promise<string> {
 }
 
 export async function POST(req: NextRequest) {
+  const session = await auth();
+  const userId = (session?.user as { id?: string })?.id;
+
   const { requirement, modelId } = (await req.json()) as {
     requirement: string;
     modelId?: string;
@@ -87,11 +92,23 @@ export async function POST(req: NextRequest) {
 
   const context = await gatherContext(requirement.trim());
 
+  const start = Date.now();
   const result = streamText({
     model: getModel(modelId),
     system: SYSTEM_PROMPT,
     prompt: `用户业务需求：\n${requirement.trim()}\n\n以下是搜索到的 MaaS 平台信息：\n${context}`,
     maxOutputTokens: 8192,
+    onFinish: async ({ usage }) => {
+      await recordUsage({
+        userId,
+        agentId: "maas",
+        providerId: "mify",
+        modelId: modelId ?? "xiaomi/mimo-v2.5-pro",
+        inputTokens: usage?.inputTokens ?? 0,
+        outputTokens: usage?.outputTokens ?? 0,
+        durationMs: Date.now() - start,
+      }).catch(() => {});
+    },
   });
 
   return result.toTextStreamResponse();

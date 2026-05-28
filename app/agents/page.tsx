@@ -1,60 +1,51 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 import ModelPicker from "@/app/components/ModelPicker";
 
-const agents = [
-  {
-    id: "research",
-    icon: "🔍",
-    name: "资讯收集",
-    description: "竞品分析、技术选型、通用调研",
-    color: "from-blue-500 to-indigo-600",
-    badge: "可用",
-  },
-  {
-    id: "stock",
-    icon: "📈",
-    name: "股票分析",
-    description: "输入股票名称，获取涨跌幅数据，支持数据问答",
-    color: "from-green-500 to-emerald-600",
-    badge: "可用",
-  },
-  {
-    id: "idea",
-    icon: "💡",
-    name: "点子王",
-    description: "输入关键词，AI 搜索网络找灵感，设计新 Agent",
-    color: "from-yellow-500 to-orange-600",
-    badge: "可用",
-  },
-  {
-    id: "knowledge",
-    icon: "📚",
-    name: "知识库",
-    description: "输入任何信息，AI 总结分类存储，支持对话问答",
-    color: "from-purple-500 to-violet-600",
-    badge: "可用",
-  },
-  {
-    id: "mcu",
-    icon: "⚡",
-    name: "MCU手册速读",
-    description: "上传MCU数据手册，AI快速提炼关键设计要点",
-    color: "from-cyan-500 to-teal-600",
-    badge: "可用",
-  },
-  {
-    id: "maas",
-    icon: "🧠",
-    name: "MaaS选型助手",
-    description: "输入业务需求，AI自动对比主流MaaS平台，生成选型报告",
-    color: "from-teal-500 to-emerald-600",
-    badge: "可用",
-  },
+interface Agent {
+  id: string;
+  icon: string;
+  name: string;
+  description: string;
+  color: string;
+  badge: string;
+}
+
+const FALLBACK_AGENTS: Agent[] = [
+  { id: "research", icon: "🔍", name: "资讯收集", description: "竞品分析、技术选型、通用调研", color: "from-blue-500 to-indigo-600", badge: "可用" },
+  { id: "stock", icon: "📈", name: "股票分析", description: "输入股票名称，获取涨跌幅数据，支持数据问答", color: "from-green-500 to-emerald-600", badge: "可用" },
+  { id: "idea", icon: "💡", name: "点子王", description: "输入关键词，AI 搜索网络找灵感，设计新 Agent", color: "from-yellow-500 to-orange-600", badge: "可用" },
+  { id: "knowledge", icon: "📚", name: "知识库", description: "输入任何信息，AI 总结分类存储，支持对话问答", color: "from-purple-500 to-violet-600", badge: "可用" },
+  { id: "mcu", icon: "⚡", name: "MCU手册速读", description: "上传MCU数据手册，AI快速提炼关键设计要点", color: "from-cyan-500 to-teal-600", badge: "可用" },
+  { id: "maas", icon: "🧠", name: "MaaS选型助手", description: "输入业务需求，AI自动对比主流MaaS平台，生成选型报告", color: "from-teal-500 to-emerald-600", badge: "可用" },
 ];
 
 export default function AgentsPage() {
+  const { data: session } = useSession();
+  const [agents, setAgents] = useState<Agent[]>(FALLBACK_AGENTS);
+  const isAdmin = (session?.user as { role?: string })?.role === "admin";
+
+  useEffect(() => {
+    fetch("/api/agents")
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setAgents(data.map((a: Record<string, unknown>) => ({
+            id: a.id as string,
+            icon: (a.icon as string) ?? "🤖",
+            name: a.name as string,
+            description: (a.description as string) ?? "",
+            color: (a.color as string) ?? "from-gray-500 to-gray-600",
+            badge: "可用",
+          })));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   return (
     <div className="min-h-screen bg-[#0a0a14] text-gray-100">
       <header className="border-b border-gray-800/60 px-6 py-4 flex items-center justify-between">
@@ -64,7 +55,14 @@ export default function AgentsPage() {
           </div>
           <span className="text-sm font-semibold text-white">AI Agent 平台</span>
         </div>
-        <ModelPicker />
+        <div className="flex items-center gap-3">
+          {isAdmin && (
+            <Link href="/admin" className="text-xs text-gray-500 hover:text-gray-300 px-3 py-1.5 rounded-lg border border-gray-800 hover:border-gray-600 transition-colors">
+              管理后台
+            </Link>
+          )}
+          <ModelPicker />
+        </div>
       </header>
 
       <div className="flex-1 flex flex-col items-center justify-center px-6 py-16">
@@ -96,13 +94,6 @@ export default function AgentsPage() {
                 </div>
               </Link>
             ))}
-
-            <div className="bg-gray-900/30 border border-gray-800 border-dashed rounded-2xl p-6 flex flex-col items-center justify-center text-center">
-              <div className="w-12 h-12 rounded-xl bg-gray-800/50 flex items-center justify-center text-2xl mb-4 text-gray-600">
-                ＋
-              </div>
-              <p className="text-xs text-gray-600">更多能力即将上线</p>
-            </div>
           </div>
         </div>
       </div>

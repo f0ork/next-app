@@ -151,3 +151,63 @@
 **状态**：✅ 已提交推送，部署待配置（`DEPLOY_TARGET` 未设置）
 
 ---
+
+## 平台 v2 架构升级 — 进行中
+
+> 规格：docs/specs/001-platform-v2/
+> 决策：PostgreSQL + Drizzle ORM | NextAuth.js v5 | 单租户 | 独立 /admin
+
+### Phase 1: 数据层 + 认证
+
+- [ ] T001 安装依赖：drizzle-orm, drizzle-kit, @auth/drizzle-adapter, next-auth@beta, bcrypt, pg
+- [ ] T002 创建 Drizzle Schema：users, agents, model_providers, usage_logs 四张表
+- [ ] T003 配置 PostgreSQL 连接（lib/db/index.ts），开发环境用 Docker PG
+- [ ] T004 创建种子脚本：默认管理员账号 + 6 个 Agent 初始配置 + Mify Provider
+- [ ] T005 实现 NextAuth.js 认证：Credentials Provider + JWT + 角色注入
+- [ ] T006 实现注册 API（POST /api/auth/register）：邮箱+密码+姓名
+- [ ] T007 实现登录/登出页面（/login, /register）
+- [ ] T008 实现 Next.js Middleware：保护 /agents/* 和 /admin/* 路由
+- [ ] T009 验证：注册 → 登录 → 访问 /agents → 登出 流程通过
+
+### Phase 2: Model Gateway
+
+- [ ] T010 创建 lib/gateway/ 模块：Provider 抽象接口 + callModel() 核心函数
+- [ ] T011 实现 Mify Provider（适配现有 @ai-sdk/anthropic 调用）
+- [ ] T012 实现 OpenAI 兼容 Provider（支持任意 OpenAI API 兼容端点）
+- [ ] T013 实现 Ollama Provider（支持本地部署模型）
+- [ ] T014 实现 Token 用量自动记录（每次调用写入 usage_logs）
+- [ ] T015 实现 Provider 管理：从 model_providers 表读取配置，动态创建 Provider 实例
+- [ ] T016 迁移 lib/ai/client.ts 的 getModel() → 使用 Gateway
+- [ ] T017 验证：Agent 调用走 Gateway，usage_logs 有记录
+
+### Phase 3: Agent 管理
+
+- [ ] T018 重构 Agent 注册表：从数据库读取 Agent 列表（替代硬编码）
+- [ ] T019 实现 Agent 配置 API（GET/PATCH /api/admin/agents/:id）
+- [ ] T020 重构 ModelPicker：从当前 Agent 配置读取可用模型（非全量列表）
+- [ ] T021 迁移各 Agent 的 modelId 获取方式：从请求上下文读取 Agent 配置
+- [ ] T022 验证：管理员禁用 Agent → 用户看不到 → 重新启用 → 可见
+
+### Phase 4: Admin 后台
+
+- [ ] T023 创建 /admin 布局（侧边栏导航 + 权限校验）
+- [ ] T024 用户管理页面：列表、搜索、禁用/启用、角色修改
+- [ ] T025 Agent 管理页面：启用/禁用开关、模型选择、Provider 选择
+- [ ] T026 Provider 管理页面：增删改查、连接测试
+- [ ] T027 用量统计页面：按 Agent/用户/时间维度的 Token 用量图表
+- [ ] T028 验证：管理员可正常管理用户/Agent/Provider
+
+### Phase 5: 数据隔离 + 部署
+
+- [ ] T029 对话历史表添加 user_id 字段，API 查询时按用户过滤
+- [ ] T030 知识库数据添加 user_id 字段，API 查询时按用户过滤
+- [ ] T031 创建 Dockerfile（多阶段构建）
+- [ ] T032 创建 docker-compose.yml（Next.js + PostgreSQL + 初始化脚本）
+- [ ] T033 编写部署文档（README_DEPLOY.md）
+- [ ] T034 验证：docker compose up → 访问 → 注册 → 使用 Agent
+
+**状态**：🔴 Phase 1 未开始
+**总任务数**：34
+**预估总工时**：12-15 天
+
+---

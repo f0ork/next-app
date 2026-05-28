@@ -1,11 +1,16 @@
 import { NextRequest } from "next/server";
 import { streamText } from "ai";
 import { getModel } from "@/lib/ai/client";
+import { auth } from "@/lib/auth";
+import { recordUsage } from "@/lib/gateway";
 import type { StockAnalysis, DailyData } from "@/lib/stock/api";
 
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
+  const session = await auth();
+  const userId = (session?.user as { id?: string })?.id;
+
   const { question, analysis } = (await req.json()) as {
     question: string;
     analysis: StockAnalysis;
@@ -31,11 +36,23 @@ ${context}
 - 使用中文回答
 - 对于策略相关的提问，直接引用回测结果`;
 
+  const start = Date.now();
   const result = streamText({
     model: getModel(),
     system: systemPrompt,
     prompt: question,
     maxOutputTokens: 2048,
+    onFinish: async ({ usage }) => {
+      await recordUsage({
+        userId,
+        agentId: "stock",
+        providerId: "mify",
+        modelId: "xiaomi/mimo-v2.5-pro",
+        inputTokens: usage?.inputTokens ?? 0,
+        outputTokens: usage?.outputTokens ?? 0,
+        durationMs: Date.now() - start,
+      }).catch(() => {});
+    },
   });
 
   return result.toTextStreamResponse();

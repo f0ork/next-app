@@ -45,3 +45,8 @@ next-env.d.ts
 
 # Knowledge base data
 data/kb/
+
+# SQLite database
+data/app.db
+data/app.db-shm
+data/app.db-wal
